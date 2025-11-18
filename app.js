@@ -241,6 +241,8 @@ function renderizarPecas(filtro = '') {
 
     const searchTerm = document.getElementById('search-pecas').value.toLowerCase();
     const filterTipo = document.getElementById('filter-tipo').value;
+    const filterDataInicio = document.getElementById('filter-data-inicio').value;
+    const filterDataFim = document.getElementById('filter-data-fim').value;
 
     if (searchTerm) {
         pecasFiltradas = pecasFiltradas.filter(peca =>
@@ -252,6 +254,28 @@ function renderizarPecas(filtro = '') {
 
     if (filterTipo) {
         pecasFiltradas = pecasFiltradas.filter(peca => peca.tipoPeca === filterTipo);
+    }
+
+    // Filtro por data
+    if (filterDataInicio && filterDataFim) {
+        pecasFiltradas = pecasFiltradas.filter(peca => {
+            const dataPeca = new Date(peca.dataCriacao);
+            const dataInicio = new Date(filterDataInicio);
+            const dataFim = new Date(filterDataFim);
+            return dataPeca >= dataInicio && dataPeca <= dataFim;
+        });
+    } else if (filterDataInicio) {
+        pecasFiltradas = pecasFiltradas.filter(peca => {
+            const dataPeca = new Date(peca.dataCriacao);
+            const dataInicio = new Date(filterDataInicio);
+            return dataPeca >= dataInicio;
+        });
+    } else if (filterDataFim) {
+        pecasFiltradas = pecasFiltradas.filter(peca => {
+            const dataPeca = new Date(peca.dataCriacao);
+            const dataFim = new Date(filterDataFim);
+            return dataPeca <= dataFim;
+        });
     }
 
     if (pecasFiltradas.length === 0) {
@@ -355,6 +379,17 @@ function renderizarPecas(filtro = '') {
 // Event listeners para filtros
 document.getElementById('search-pecas').addEventListener('input', renderizarPecas);
 document.getElementById('filter-tipo').addEventListener('change', renderizarPecas);
+document.getElementById('filter-data-inicio').addEventListener('change', renderizarPecas);
+document.getElementById('filter-data-fim').addEventListener('change', renderizarPecas);
+
+// Botão limpar filtros
+document.getElementById('btn-limpar-filtros').addEventListener('click', function() {
+    document.getElementById('search-pecas').value = '';
+    document.getElementById('filter-tipo').value = '';
+    document.getElementById('filter-data-inicio').value = '';
+    document.getElementById('filter-data-fim').value = '';
+    renderizarPecas();
+});
 
 // ==================== FUNÇÕES AUXILIARES ====================
 function visualizarComprovacao(id) {

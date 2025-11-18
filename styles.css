@@ -527,11 +527,13 @@ body {
     padding: 1.5rem;
     background: var(--bg-secondary);
     border-radius: var(--border-radius-sm);
+    flex-wrap: wrap;
 }
 
 .filter-bar input,
 .filter-bar select {
     flex: 1;
+    min-width: 200px;
     padding: 0.875rem 1rem;
     border: 2px solid var(--border-color);
     border-radius: var(--border-radius-sm);
@@ -544,6 +546,28 @@ body {
 .filter-bar select:focus {
     outline: none;
     border-color: var(--primary-color);
+}
+
+.btn-filter-clear {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.875rem 1.5rem;
+    border: 2px solid var(--border-color);
+    background: var(--bg-primary);
+    border-radius: var(--border-radius-sm);
+    font-size: 1rem;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: var(--transition);
+    white-space: nowrap;
+}
+
+.btn-filter-clear:hover {
+    background: var(--danger-color);
+    color: white;
+    border-color: var(--danger-color);
 }
 
 /* Peças Grid */
