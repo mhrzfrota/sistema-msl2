@@ -79,6 +79,12 @@ formCadastro.addEventListener('submit', function(e) {
         return;
     }
 
+    // Validação de tamanho do arquivo (5MB)
+    if (arquivoSelecionado.size > 5 * 1024 * 1024) {
+        showMessage('O arquivo deve ter no máximo 5MB!', 'error');
+        return;
+    }
+
     // Captura dos dados
     const novaPeca = {
         id: Date.now(),
@@ -88,6 +94,7 @@ formCadastro.addEventListener('submit', function(e) {
         nomePeca: document.getElementById('nome-peca').value,
         dataCriacao: document.getElementById('data-criacao').value,
         dataVeiculacao: document.getElementById('data-veiculacao').value || null,
+        observacao: document.getElementById('observacao').value || '',
         comprovacao: previewImage.src,
         dataCadastro: new Date().toISOString()
     };
@@ -308,6 +315,18 @@ function renderizarPecas(filtro = '') {
                         </svg>
                         <strong>Veiculação:</strong>
                         <span>${formatarData(peca.dataVeiculacao)}</span>
+                    </div>
+                    ` : ''}
+                    ${peca.observacao ? `
+                    <div class="peca-info-item" style="grid-column: 1 / -1; margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid var(--border-color);">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                            <polyline points="14 2 14 8 20 8"/>
+                            <line x1="16" y1="13" x2="8" y2="13"/>
+                            <line x1="16" y1="17" x2="8" y2="17"/>
+                        </svg>
+                        <strong>Observação:</strong>
+                        <span style="flex: 1;">${peca.observacao}</span>
                     </div>
                     ` : ''}
                 </div>

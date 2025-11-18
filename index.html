@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema de Gestão de Peças - MSL2</title>
+    <title>SIGEPRE - Sistema de Gestão de Peças e Relatórios</title>
     <link rel="stylesheet" href="styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
@@ -12,8 +12,8 @@
         <!-- Header -->
         <header class="header">
             <div class="header-content">
-                <h1>Sistema de Gestão de Peças</h1>
-                <p class="subtitle">Gerenciamento de peças jornalísticas - MSL2</p>
+                <h1>SIGEPRE</h1>
+                <p class="subtitle">Sistema de Gestão de Peças e Relatórios</p>
             </div>
         </header>
 
@@ -105,8 +105,8 @@
                                 <input type="date" id="data-veiculacao">
                             </div>
 
-                            <!-- Linha 4: Upload de Comprovação -->
-                            <div class="form-group full-width">
+                            <!-- Linha 4: Upload de Comprovação e Observação -->
+                            <div class="form-group">
                                 <label for="comprovacao">Comprovação (Print) <span class="required">*</span></label>
                                 <div class="file-upload-wrapper">
                                     <input type="file" id="comprovacao" accept="image/*" required>
@@ -115,13 +115,18 @@
                                             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
                                         </svg>
                                         <p>Clique para selecionar ou arraste o arquivo aqui</p>
-                                        <span>Formatos aceitos: PNG, JPG, JPEG</span>
+                                        <span>Formatos aceitos: PNG, JPG, JPEG - Limite: 5MB</span>
                                     </div>
                                     <div class="file-preview" style="display: none;">
                                         <img id="preview-image" src="" alt="Preview">
                                         <button type="button" class="remove-file">×</button>
                                     </div>
                                 </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="observacao">Observação</label>
+                                <textarea id="observacao" rows="5" placeholder="Digite observações adicionais sobre a peça..."></textarea>
                             </div>
                         </div>
 
