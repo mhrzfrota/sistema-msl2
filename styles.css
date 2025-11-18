@@ -563,6 +563,10 @@ body {
     border-left: 4px solid var(--primary-color);
 }
 
+.peca-card:nth-child(even) {
+    background: #F3F6F6;
+}
+
 .peca-card:hover {
     transform: translateY(-4px);
     box-shadow: var(--shadow-lg);
