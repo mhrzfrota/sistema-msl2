@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Gestão de Peças - MSL2</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1>Sistema de Gestão de Peças</h1>
+                <p class="subtitle">Gerenciamento de peças jornalísticas - MSL2</p>
+            </div>
+        </header>
+
+        <!-- Navigation Tabs -->
+        <nav class="tabs">
+            <button class="tab-btn active" data-tab="cadastro">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 5v14M5 12h14"/>
+                </svg>
+                Cadastrar Peça
+            </button>
+            <button class="tab-btn" data-tab="relatorio">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 17H7A5 5 0 0 1 7 7h2M15 7h2a5 5 0 1 1 0 10h-2M7 12h10"/>
+                </svg>
+                Gerar Relatório
+            </button>
+            <button class="tab-btn" data-tab="listagem">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>
+                </svg>
+                Listar Peças
+            </button>
+        </nav>
+
+        <!-- Content Area -->
+        <main class="content">
+
+            <!-- CADASTRO TAB -->
+            <section id="cadastro" class="tab-content active">
+                <div class="card">
+                    <div class="card-header">
+                        <h2>Cadastrar Nova Peça</h2>
+                        <p>Preencha os campos abaixo para registrar uma nova peça</p>
+                    </div>
+
+                    <form id="form-cadastro" class="form">
+                        <div class="form-grid">
+
+                            <!-- Linha 1: Dropdowns -->
+                            <div class="form-group">
+                                <label for="cliente">Cliente <span class="required">*</span></label>
+                                <select id="cliente" required>
+                                    <option value="">Selecione um cliente</option>
+                                    <option value="Cliente A">Cliente A</option>
+                                    <option value="Cliente B">Cliente B</option>
+                                    <option value="Cliente C">Cliente C</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="secretaria">Secretaria <span class="required">*</span></label>
+                                <select id="secretaria" required>
+                                    <option value="">Selecione uma secretaria</option>
+                                    <option value="Secretaria de Saúde">Secretaria de Saúde</option>
+                                    <option value="Secretaria de Educação">Secretaria de Educação</option>
+                                    <option value="Secretaria de Cultura">Secretaria de Cultura</option>
+                                    <option value="Secretaria de Obras">Secretaria de Obras</option>
+                                    <option value="Secretaria de Turismo">Secretaria de Turismo</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="tipo-peca">Tipo de Peça <span class="required">*</span></label>
+                                <select id="tipo-peca" required>
+                                    <option value="">Selecione o tipo</option>
+                                    <option value="Matéria">Matéria</option>
+                                    <option value="Nota">Nota</option>
+                                    <option value="Reportagem">Reportagem</option>
+                                    <option value="Entrevista">Entrevista</option>
+                                    <option value="Release">Release</option>
+                                </select>
+                            </div>
+
+                            <!-- Linha 2: Nome da Peça -->
+                            <div class="form-group full-width">
+                                <label for="nome-peca">Nome da Peça <span class="required">*</span></label>
+                                <input type="text" id="nome-peca" placeholder="Digite o nome da peça" required>
+                            </div>
+
+                            <!-- Linha 3: Datas -->
+                            <div class="form-group">
+                                <label for="data-criacao">Data de Criação <span class="required">*</span></label>
+                                <input type="date" id="data-criacao" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="data-veiculacao">Data de Veiculação</label>
+                                <input type="date" id="data-veiculacao">
+                            </div>
+
+                            <!-- Linha 4: Upload de Comprovação -->
+                            <div class="form-group full-width">
+                                <label for="comprovacao">Comprovação (Print) <span class="required">*</span></label>
+                                <div class="file-upload-wrapper">
+                                    <input type="file" id="comprovacao" accept="image/*" required>
+                                    <div class="file-upload-placeholder">
+                                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+                                        </svg>
+                                        <p>Clique para selecionar ou arraste o arquivo aqui</p>
+                                        <span>Formatos aceitos: PNG, JPG, JPEG</span>
+                                    </div>
+                                    <div class="file-preview" style="display: none;">
+                                        <img id="preview-image" src="" alt="Preview">
+                                        <button type="button" class="remove-file">×</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="reset" class="btn btn-secondary">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                                </svg>
+                                Limpar
+                            </button>
+                            <button type="submit" class="btn btn-primary">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                                    <polyline points="17 21 17 13 7 13 7 21"/>
+                                    <polyline points="7 3 7 8 15 8"/>
+                                </svg>
+                                Cadastrar Peça
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
+            <!-- RELATÓRIO TAB -->
+            <section id="relatorio" class="tab-content">
+                <div class="card">
+                    <div class="card-header">
+                        <h2>Gerar Relatório</h2>
+                        <p>Selecione os filtros para gerar o relatório desejado</p>
+                    </div>
+
+                    <form id="form-relatorio" class="form">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="rel-cliente">Cliente <span class="required">*</span></label>
+                                <select id="rel-cliente" required>
+                                    <option value="">Todos os clientes</option>
+                                    <option value="Cliente A">Cliente A</option>
+                                    <option value="Cliente B">Cliente B</option>
+                                    <option value="Cliente C">Cliente C</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="rel-secretaria">Secretaria</label>
+                                <select id="rel-secretaria">
+                                    <option value="">Todas as secretarias</option>
+                                    <option value="Secretaria de Saúde">Secretaria de Saúde</option>
+                                    <option value="Secretaria de Educação">Secretaria de Educação</option>
+                                    <option value="Secretaria de Cultura">Secretaria de Cultura</option>
+                                    <option value="Secretaria de Obras">Secretaria de Obras</option>
+                                    <option value="Secretaria de Turismo">Secretaria de Turismo</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="rel-data-inicio">Data Início <span class="required">*</span></label>
+                                <input type="date" id="rel-data-inicio" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="rel-data-fim">Data Fim <span class="required">*</span></label>
+                                <input type="date" id="rel-data-fim" required>
+                            </div>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                    <polyline points="14 2 14 8 20 8"/>
+                                    <line x1="16" y1="13" x2="8" y2="13"/>
+                                    <line x1="16" y1="17" x2="8" y2="17"/>
+                                    <polyline points="10 9 9 9 8 9"/>
+                                </svg>
+                                Gerar Relatório
+                            </button>
+                        </div>
+                    </form>
+
+                    <!-- Área de Resultado do Relatório -->
+                    <div id="resultado-relatorio" class="relatorio-resultado" style="display: none;">
+                        <div class="relatorio-header">
+                            <h3>Relatório de Peças</h3>
+                            <button id="btn-exportar" class="btn btn-secondary">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+                                </svg>
+                                Exportar PDF
+                            </button>
+                        </div>
+
+                        <div class="relatorio-info">
+                            <div class="info-item">
+                                <strong>Cliente:</strong>
+                                <span id="info-cliente">-</span>
+                            </div>
+                            <div class="info-item">
+                                <strong>Período:</strong>
+                                <span id="info-periodo">-</span>
+                            </div>
+                            <div class="info-item">
+                                <strong>Secretaria:</strong>
+                                <span id="info-secretaria">-</span>
+                            </div>
+                        </div>
+
+                        <div class="stats-cards">
+                            <div class="stat-card">
+                                <div class="stat-icon" style="background: #4CAF50;">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                        <polyline points="14 2 14 8 20 8"/>
+                                    </svg>
+                                </div>
+                                <div class="stat-content">
+                                    <h4>Total de Peças</h4>
+                                    <p id="stat-total">0</p>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon" style="background: #2196F3;">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                                        <circle cx="9" cy="7" r="4"/>
+                                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                                        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                                    </svg>
+                                </div>
+                                <div class="stat-content">
+                                    <h4>Secretarias</h4>
+                                    <p id="stat-secretarias">0</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="table-wrapper">
+                            <table class="relatorio-table">
+                                <thead>
+                                    <tr>
+                                        <th>Secretaria</th>
+                                        <th>Tipo de Peça</th>
+                                        <th>Nome da Peça</th>
+                                        <th>Data Criação</th>
+                                        <th>Data Veiculação</th>
+                                        <th>Quantidade</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabela-relatorio">
+                                    <!-- Dados serão inseridos aqui -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- LISTAGEM TAB -->
+            <section id="listagem" class="tab-content">
+                <div class="card">
+                    <div class="card-header">
+                        <h2>Peças Cadastradas</h2>
+                        <p>Visualize e gerencie todas as peças cadastradas</p>
+                    </div>
+
+                    <div class="filter-bar">
+                        <input type="text" id="search-pecas" placeholder="Buscar por nome, cliente ou secretaria...">
+                        <select id="filter-tipo">
+                            <option value="">Todos os tipos</option>
+                            <option value="Matéria">Matéria</option>
+                            <option value="Nota">Nota</option>
+                            <option value="Reportagem">Reportagem</option>
+                            <option value="Entrevista">Entrevista</option>
+                            <option value="Release">Release</option>
+                        </select>
+                    </div>
+
+                    <div id="lista-pecas" class="pecas-grid">
+                        <!-- Cards serão inseridos aqui -->
+                    </div>
+
+                    <div id="empty-state" class="empty-state">
+                        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M9 17H7A5 5 0 0 1 7 7h2M15 7h2a5 5 0 1 1 0 10h-2M7 12h10"/>
+                        </svg>
+                        <h3>Nenhuma peça cadastrada</h3>
+                        <p>Comece cadastrando sua primeira peça na aba "Cadastrar Peça"</p>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- Modal para visualizar comprovação -->
+    <div id="modal-comprovacao" class="modal">
+        <div class="modal-content">
+            <span class="modal-close">&times;</span>
+            <img id="modal-image" src="" alt="Comprovação">
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
