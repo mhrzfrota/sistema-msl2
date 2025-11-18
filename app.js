@@ -254,17 +254,18 @@ function renderizarPecas(filtro = '') {
     // Aplica filtros
     let pecasFiltradas = pecas;
 
-    const searchTerm = document.getElementById('search-pecas').value.toLowerCase();
+    const filterCliente = document.getElementById('filter-cliente').value;
+    const filterSecretaria = document.getElementById('filter-secretaria').value;
     const filterTipo = document.getElementById('filter-tipo').value;
     const filterDataInicio = document.getElementById('filter-data-inicio').value;
     const filterDataFim = document.getElementById('filter-data-fim').value;
 
-    if (searchTerm) {
-        pecasFiltradas = pecasFiltradas.filter(peca =>
-            peca.nomePeca.toLowerCase().includes(searchTerm) ||
-            peca.cliente.toLowerCase().includes(searchTerm) ||
-            peca.secretaria.toLowerCase().includes(searchTerm)
-        );
+    if (filterCliente) {
+        pecasFiltradas = pecasFiltradas.filter(peca => peca.cliente === filterCliente);
+    }
+
+    if (filterSecretaria) {
+        pecasFiltradas = pecasFiltradas.filter(peca => peca.secretaria === filterSecretaria);
     }
 
     if (filterTipo) {
@@ -401,17 +402,55 @@ function renderizarPecas(filtro = '') {
 }
 
 // Event listeners para filtros
-document.getElementById('search-pecas').addEventListener('input', renderizarPecas);
+document.getElementById('filter-cliente').addEventListener('change', function() {
+    const clienteSelecionado = this.value;
+    const filterSecretariaSelect = document.getElementById('filter-secretaria');
+
+    // Atualiza dropdown de secretarias baseado no cliente selecionado
+    filterSecretariaSelect.innerHTML = '<option value="">Todas as secretarias</option>';
+
+    if (clienteSelecionado && secretarias[clienteSelecionado]) {
+        secretarias[clienteSelecionado].forEach(secretaria => {
+            filterSecretariaSelect.innerHTML += `<option value="${secretaria}">${secretaria}</option>`;
+        });
+    } else if (!clienteSelecionado) {
+        // Se não houver cliente selecionado, mostra todas as secretarias
+        const todasSecretarias = new Set();
+        Object.values(secretarias).forEach(secs => {
+            secs.forEach(sec => todasSecretarias.add(sec));
+        });
+        todasSecretarias.forEach(secretaria => {
+            filterSecretariaSelect.innerHTML += `<option value="${secretaria}">${secretaria}</option>`;
+        });
+    }
+
+    renderizarPecas();
+});
+
+document.getElementById('filter-secretaria').addEventListener('change', renderizarPecas);
 document.getElementById('filter-tipo').addEventListener('change', renderizarPecas);
 document.getElementById('filter-data-inicio').addEventListener('change', renderizarPecas);
 document.getElementById('filter-data-fim').addEventListener('change', renderizarPecas);
 
 // Botão limpar filtros
 document.getElementById('btn-limpar-filtros').addEventListener('click', function() {
-    document.getElementById('search-pecas').value = '';
+    document.getElementById('filter-cliente').value = '';
+    document.getElementById('filter-secretaria').value = '';
     document.getElementById('filter-tipo').value = '';
     document.getElementById('filter-data-inicio').value = '';
     document.getElementById('filter-data-fim').value = '';
+
+    // Restaura todas as secretarias no dropdown
+    const filterSecretariaSelect = document.getElementById('filter-secretaria');
+    filterSecretariaSelect.innerHTML = '<option value="">Todas as secretarias</option>';
+    const todasSecretarias = new Set();
+    Object.values(secretarias).forEach(secs => {
+        secs.forEach(sec => todasSecretarias.add(sec));
+    });
+    todasSecretarias.forEach(secretaria => {
+        filterSecretariaSelect.innerHTML += `<option value="${secretaria}">${secretaria}</option>`;
+    });
+
     renderizarPecas();
 });
 
@@ -526,6 +565,24 @@ function atualizarDropdowns() {
     secClienteSelect.innerHTML = '<option value="">Selecione um cliente</option>';
     clientes.forEach(cliente => {
         secClienteSelect.innerHTML += `<option value="${cliente}">${cliente}</option>`;
+    });
+
+    // Atualiza dropdown de clientes no filtro de listagem
+    const filterClienteSelect = document.getElementById('filter-cliente');
+    filterClienteSelect.innerHTML = '<option value="">Todos os clientes</option>';
+    clientes.forEach(cliente => {
+        filterClienteSelect.innerHTML += `<option value="${cliente}">${cliente}</option>`;
+    });
+
+    // Atualiza dropdown de secretarias no filtro de listagem
+    const filterSecretariaSelect = document.getElementById('filter-secretaria');
+    filterSecretariaSelect.innerHTML = '<option value="">Todas as secretarias</option>';
+    const todasSecretarias = new Set();
+    Object.values(secretarias).forEach(secs => {
+        secs.forEach(sec => todasSecretarias.add(sec));
+    });
+    todasSecretarias.forEach(secretaria => {
+        filterSecretariaSelect.innerHTML += `<option value="${secretaria}">${secretaria}</option>`;
     });
 
     // Atualiza dropdown de tipos de peça
