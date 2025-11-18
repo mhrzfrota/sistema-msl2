@@ -239,6 +239,8 @@ function gerarRelatorio(pecasFiltradas, cliente, secretaria, dataInicio, dataFim
 }
 
 // ==================== LISTAGEM DE PEÇAS ====================
+let viewMode = 'grid'; // 'grid' ou 'list'
+
 function renderizarPecas(filtro = '') {
     const listaPecas = document.getElementById('lista-pecas');
     const emptyState = document.getElementById('empty-state');
@@ -299,7 +301,9 @@ function renderizarPecas(filtro = '') {
         return;
     }
 
-    listaPecas.style.display = 'grid';
+    // Atualiza classe baseado no modo de visualização
+    listaPecas.className = viewMode === 'grid' ? 'pecas-grid' : 'pecas-list';
+    listaPecas.style.display = viewMode === 'grid' ? 'grid' : 'flex';
     emptyState.style.display = 'none';
     listaPecas.innerHTML = '';
 
@@ -408,6 +412,21 @@ document.getElementById('btn-limpar-filtros').addEventListener('click', function
     document.getElementById('filter-tipo').value = '';
     document.getElementById('filter-data-inicio').value = '';
     document.getElementById('filter-data-fim').value = '';
+    renderizarPecas();
+});
+
+// Event listeners para alternância de visualização
+document.getElementById('btn-view-grid').addEventListener('click', function() {
+    viewMode = 'grid';
+    document.getElementById('btn-view-grid').classList.add('active');
+    document.getElementById('btn-view-list').classList.remove('active');
+    renderizarPecas();
+});
+
+document.getElementById('btn-view-list').addEventListener('click', function() {
+    viewMode = 'list';
+    document.getElementById('btn-view-list').classList.add('active');
+    document.getElementById('btn-view-grid').classList.remove('active');
     renderizarPecas();
 });
 

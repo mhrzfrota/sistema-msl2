@@ -566,11 +566,55 @@ body {
     border-color: var(--danger-color);
 }
 
+.view-toggle {
+    display: flex;
+    gap: 0.25rem;
+    background: var(--bg-primary);
+    border-radius: var(--border-radius-sm);
+    padding: 0.25rem;
+    border: 2px solid var(--border-color);
+}
+
+.btn-view-toggle {
+    padding: 0.5rem;
+    border: none;
+    background: transparent;
+    border-radius: var(--border-radius-sm);
+    cursor: pointer;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+}
+
+.btn-view-toggle:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.btn-view-toggle.active {
+    background: #000000;
+    color: white;
+}
+
+.btn-view-toggle svg {
+    display: block;
+}
+
 /* Peças Grid */
 .pecas-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
     gap: 1.5rem;
+    padding: 1.5rem;
+}
+
+/* Peças List */
+.pecas-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
     padding: 1.5rem;
 }
 
@@ -590,6 +634,50 @@ body {
 .peca-card:hover {
     transform: translateY(-4px);
     box-shadow: var(--shadow-lg);
+}
+
+/* Peca Card List View */
+.pecas-list .peca-card {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    padding: 1rem 1.5rem;
+}
+
+.pecas-list .peca-card-header {
+    margin-bottom: 0;
+    flex: 0 0 auto;
+    min-width: 200px;
+}
+
+.pecas-list .peca-card-body {
+    flex: 1;
+    margin-bottom: 0;
+    margin-left: 1.5rem;
+    margin-right: 1.5rem;
+}
+
+.pecas-list .peca-info {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.pecas-list .peca-info-item {
+    min-width: auto;
+}
+
+.pecas-list .peca-card-footer {
+    margin-left: auto;
+    flex: 0 0 auto;
+    border-top: none;
+    padding-top: 0;
+    min-width: 300px;
+}
+
+.pecas-list .peca-card:hover {
+    transform: translateY(0);
+    box-shadow: var(--shadow-md);
 }
 
 .peca-card-header {
@@ -981,6 +1069,30 @@ body {
 
     .stats-cards {
         grid-template-columns: 1fr;
+    }
+
+    .pecas-list .peca-card {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .pecas-list .peca-card-header {
+        min-width: 100%;
+        margin-bottom: 1rem;
+    }
+
+    .pecas-list .peca-card-body {
+        margin-left: 0;
+        margin-right: 0;
+        margin-bottom: 1rem;
+        width: 100%;
+    }
+
+    .pecas-list .peca-card-footer {
+        min-width: 100%;
+        width: 100%;
+        padding-top: 1rem;
+        border-top: 1px solid var(--border-color);
     }
 }
 
