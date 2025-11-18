@@ -2,6 +2,19 @@
 // Storage para armazenar as peças cadastradas
 let pecas = JSON.parse(localStorage.getItem('pecas')) || [];
 
+// Storage para configurações
+let clientes = JSON.parse(localStorage.getItem('clientes')) || [
+    'Cliente A', 'Cliente B', 'Cliente C'
+];
+let secretarias = JSON.parse(localStorage.getItem('secretarias')) || {
+    'Cliente A': ['Secretaria de Saúde', 'Secretaria de Educação'],
+    'Cliente B': ['Secretaria de Cultura', 'Secretaria de Obras'],
+    'Cliente C': ['Secretaria de Turismo']
+};
+let tiposPeca = JSON.parse(localStorage.getItem('tiposPeca')) || [
+    'Matéria', 'Nota', 'Reportagem', 'Entrevista', 'Release'
+];
+
 // Elementos do DOM
 const tabs = document.querySelectorAll('.tab-btn');
 const tabContents = document.querySelectorAll('.tab-content');
@@ -363,6 +376,13 @@ function renderizarPecas(filtro = '') {
                     </svg>
                     Ver Comprovação
                 </button>
+                <button class="btn-small btn-edit" onclick="editarPeca(${peca.id})">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                    </svg>
+                    Editar
+                </button>
                 <button class="btn-small btn-delete" onclick="deletarPeca(${peca.id})">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polyline points="3 6 5 6 21 6"/>
@@ -459,6 +479,469 @@ document.getElementById('btn-exportar').addEventListener('click', function() {
     window.print();
 });
 
+// ==================== CONFIGURAÇÃO ====================
+function salvarConfig() {
+    localStorage.setItem('clientes', JSON.stringify(clientes));
+    localStorage.setItem('secretarias', JSON.stringify(secretarias));
+    localStorage.setItem('tiposPeca', JSON.stringify(tiposPeca));
+    atualizarDropdowns();
+}
+
+function atualizarDropdowns() {
+    // Atualiza dropdown de clientes no cadastro
+    const clienteSelect = document.getElementById('cliente');
+    clienteSelect.innerHTML = '<option value="">Selecione um cliente</option>';
+    clientes.forEach(cliente => {
+        clienteSelect.innerHTML += `<option value="${cliente}">${cliente}</option>`;
+    });
+
+    // Atualiza dropdown de clientes no relatório
+    const relClienteSelect = document.getElementById('rel-cliente');
+    relClienteSelect.innerHTML = '<option value="">Todos os clientes</option>';
+    clientes.forEach(cliente => {
+        relClienteSelect.innerHTML += `<option value="${cliente}">${cliente}</option>`;
+    });
+
+    // Atualiza dropdown de clientes na configuração de secretarias
+    const secClienteSelect = document.getElementById('secretaria-cliente');
+    secClienteSelect.innerHTML = '<option value="">Selecione um cliente</option>';
+    clientes.forEach(cliente => {
+        secClienteSelect.innerHTML += `<option value="${cliente}">${cliente}</option>`;
+    });
+
+    // Atualiza dropdown de tipos de peça
+    const tipoPecaSelect = document.getElementById('tipo-peca');
+    tipoPecaSelect.innerHTML = '<option value="">Selecione o tipo</option>';
+    tiposPeca.forEach(tipo => {
+        tipoPecaSelect.innerHTML += `<option value="${tipo}">${tipo}</option>`;
+    });
+
+    // Atualiza dropdown de tipos no filtro
+    const filterTipoSelect = document.getElementById('filter-tipo');
+    filterTipoSelect.innerHTML = '<option value="">Todos os tipos</option>';
+    tiposPeca.forEach(tipo => {
+        filterTipoSelect.innerHTML += `<option value="${tipo}">${tipo}</option>`;
+    });
+}
+
+// Renderizar lista de clientes
+function renderizarClientes() {
+    const lista = document.getElementById('lista-clientes');
+    lista.innerHTML = '';
+
+    clientes.forEach((cliente, index) => {
+        const item = document.createElement('div');
+        item.className = 'config-item';
+        item.innerHTML = `
+            <div class="config-item-content">
+                <div class="config-item-title">${cliente}</div>
+                <div class="config-item-subtitle">${secretarias[cliente] ? secretarias[cliente].length : 0} secretaria(s)</div>
+            </div>
+            <div class="config-item-actions">
+                <button class="btn-icon btn-icon-delete" onclick="deletarCliente('${cliente}')">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="3 6 5 6 21 6"/>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                    </svg>
+                </button>
+            </div>
+        `;
+        lista.appendChild(item);
+    });
+}
+
+// Adicionar cliente
+document.getElementById('btn-add-cliente').addEventListener('click', () => {
+    const input = document.getElementById('novo-cliente');
+    const nomeCliente = input.value.trim();
+
+    if (!nomeCliente) {
+        showMessage('Digite o nome do cliente!', 'error');
+        return;
+    }
+
+    if (clientes.includes(nomeCliente)) {
+        showMessage('Cliente já existe!', 'error');
+        return;
+    }
+
+    clientes.push(nomeCliente);
+    secretarias[nomeCliente] = [];
+    salvarConfig();
+    renderizarClientes();
+    input.value = '';
+    showMessage('Cliente adicionado com sucesso!', 'success');
+});
+
+// Deletar cliente
+function deletarCliente(nomeCliente) {
+    if (confirm(`Tem certeza que deseja excluir o cliente "${nomeCliente}"? Isso também excluirá todas as secretarias associadas.`)) {
+        clientes = clientes.filter(c => c !== nomeCliente);
+        delete secretarias[nomeCliente];
+        salvarConfig();
+        renderizarClientes();
+        renderizarSecretarias();
+        showMessage('Cliente excluído com sucesso!', 'success');
+    }
+}
+
+// Renderizar lista de secretarias
+function renderizarSecretarias() {
+    const lista = document.getElementById('lista-secretarias');
+    const clienteSelecionado = document.getElementById('secretaria-cliente').value;
+
+    lista.innerHTML = '';
+
+    if (!clienteSelecionado) {
+        lista.innerHTML = '<p style="text-align: center; color: var(--text-muted); padding: 2rem;">Selecione um cliente para visualizar as secretarias</p>';
+        return;
+    }
+
+    const secretariasCliente = secretarias[clienteSelecionado] || [];
+
+    if (secretariasCliente.length === 0) {
+        lista.innerHTML = '<p style="text-align: center; color: var(--text-muted); padding: 2rem;">Nenhuma secretaria cadastrada para este cliente</p>';
+        return;
+    }
+
+    secretariasCliente.forEach(secretaria => {
+        const item = document.createElement('div');
+        item.className = 'config-item';
+        item.innerHTML = `
+            <div class="config-item-content">
+                <div class="config-item-title">${secretaria}</div>
+                <div class="config-item-subtitle">${clienteSelecionado}</div>
+            </div>
+            <div class="config-item-actions">
+                <button class="btn-icon btn-icon-delete" onclick="deletarSecretaria('${clienteSelecionado}', '${secretaria}')">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="3 6 5 6 21 6"/>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                    </svg>
+                </button>
+            </div>
+        `;
+        lista.appendChild(item);
+    });
+}
+
+// Adicionar secretaria
+document.getElementById('btn-add-secretaria').addEventListener('click', () => {
+    const clienteSelecionado = document.getElementById('secretaria-cliente').value;
+    const input = document.getElementById('nova-secretaria');
+    const nomeSecretaria = input.value.trim();
+
+    if (!clienteSelecionado) {
+        showMessage('Selecione um cliente!', 'error');
+        return;
+    }
+
+    if (!nomeSecretaria) {
+        showMessage('Digite o nome da secretaria!', 'error');
+        return;
+    }
+
+    if (!secretarias[clienteSelecionado]) {
+        secretarias[clienteSelecionado] = [];
+    }
+
+    if (secretarias[clienteSelecionado].includes(nomeSecretaria)) {
+        showMessage('Secretaria já existe para este cliente!', 'error');
+        return;
+    }
+
+    secretarias[clienteSelecionado].push(nomeSecretaria);
+    salvarConfig();
+    renderizarSecretarias();
+    renderizarClientes();
+    input.value = '';
+    showMessage('Secretaria adicionada com sucesso!', 'success');
+});
+
+// Deletar secretaria
+function deletarSecretaria(cliente, secretaria) {
+    if (confirm(`Tem certeza que deseja excluir a secretaria "${secretaria}"?`)) {
+        secretarias[cliente] = secretarias[cliente].filter(s => s !== secretaria);
+        salvarConfig();
+        renderizarSecretarias();
+        renderizarClientes();
+        showMessage('Secretaria excluída com sucesso!', 'success');
+    }
+}
+
+// Event listener para mudança de cliente na configuração
+document.getElementById('secretaria-cliente').addEventListener('change', renderizarSecretarias);
+
+// Event listener para mudança de cliente no cadastro de peça
+document.getElementById('cliente').addEventListener('change', function() {
+    const clienteSelecionado = this.value;
+    const secretariaSelect = document.getElementById('secretaria');
+
+    secretariaSelect.innerHTML = '<option value="">Selecione uma secretaria</option>';
+
+    if (clienteSelecionado && secretarias[clienteSelecionado]) {
+        secretarias[clienteSelecionado].forEach(secretaria => {
+            secretariaSelect.innerHTML += `<option value="${secretaria}">${secretaria}</option>`;
+        });
+    }
+});
+
+// Atualiza dropdown de secretarias no relatório quando cliente for selecionado
+document.getElementById('rel-cliente').addEventListener('change', function() {
+    const clienteSelecionado = this.value;
+    const secretariaSelect = document.getElementById('rel-secretaria');
+
+    secretariaSelect.innerHTML = '<option value="">Todas as secretarias</option>';
+
+    if (clienteSelecionado && secretarias[clienteSelecionado]) {
+        secretarias[clienteSelecionado].forEach(secretaria => {
+            secretariaSelect.innerHTML += `<option value="${secretaria}">${secretaria}</option>`;
+        });
+    } else if (!clienteSelecionado) {
+        // Mostra todas as secretarias de todos os clientes
+        const todasSecretarias = new Set();
+        Object.values(secretarias).forEach(secs => {
+            secs.forEach(sec => todasSecretarias.add(sec));
+        });
+        todasSecretarias.forEach(secretaria => {
+            secretariaSelect.innerHTML += `<option value="${secretaria}">${secretaria}</option>`;
+        });
+    }
+});
+
+// Renderizar lista de tipos de peça
+function renderizarTiposPeca() {
+    const lista = document.getElementById('lista-tipos');
+    lista.innerHTML = '';
+
+    tiposPeca.forEach(tipo => {
+        const item = document.createElement('div');
+        item.className = 'config-item';
+        item.innerHTML = `
+            <div class="config-item-content">
+                <div class="config-item-title">${tipo}</div>
+                <div class="config-item-subtitle">Disponível para todos os clientes</div>
+            </div>
+            <div class="config-item-actions">
+                <button class="btn-icon btn-icon-delete" onclick="deletarTipoPeca('${tipo}')">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="3 6 5 6 21 6"/>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                    </svg>
+                </button>
+            </div>
+        `;
+        lista.appendChild(item);
+    });
+}
+
+// Adicionar tipo de peça
+document.getElementById('btn-add-tipo').addEventListener('click', () => {
+    const input = document.getElementById('novo-tipo');
+    const nomeTipo = input.value.trim();
+
+    if (!nomeTipo) {
+        showMessage('Digite o tipo de peça!', 'error');
+        return;
+    }
+
+    if (tiposPeca.includes(nomeTipo)) {
+        showMessage('Tipo de peça já existe!', 'error');
+        return;
+    }
+
+    tiposPeca.push(nomeTipo);
+    salvarConfig();
+    renderizarTiposPeca();
+    input.value = '';
+    showMessage('Tipo de peça adicionado com sucesso!', 'success');
+});
+
+// Deletar tipo de peça
+function deletarTipoPeca(tipo) {
+    if (confirm(`Tem certeza que deseja excluir o tipo "${tipo}"?`)) {
+        tiposPeca = tiposPeca.filter(t => t !== tipo);
+        salvarConfig();
+        renderizarTiposPeca();
+        showMessage('Tipo de peça excluído com sucesso!', 'success');
+    }
+}
+
+// ==================== EDIÇÃO DE PEÇA ====================
+const modalEdicao = document.getElementById('modal-edicao');
+const modalCloseEdit = document.querySelector('.modal-close-edit');
+const formEdicao = document.getElementById('form-edicao');
+const editFileInput = document.getElementById('edit-comprovacao');
+const editPreviewImage = document.getElementById('edit-preview-image');
+const editFilePreview = document.querySelector('.file-preview-edit');
+const removeFileEditBtn = document.querySelector('.remove-file-edit');
+
+let editArquivoSelecionado = null;
+
+// Função para abrir modal de edição
+function editarPeca(id) {
+    const peca = pecas.find(p => p.id === id);
+    if (!peca) return;
+
+    // Preenche o ID
+    document.getElementById('edit-id').value = peca.id;
+
+    // Atualiza dropdowns de edição
+    const editClienteSelect = document.getElementById('edit-cliente');
+    editClienteSelect.innerHTML = '<option value="">Selecione um cliente</option>';
+    clientes.forEach(cliente => {
+        editClienteSelect.innerHTML += `<option value="${cliente}">${cliente}</option>`;
+    });
+    editClienteSelect.value = peca.cliente;
+
+    // Atualiza dropdown de secretaria baseado no cliente
+    const editSecretariaSelect = document.getElementById('edit-secretaria');
+    editSecretariaSelect.innerHTML = '<option value="">Selecione uma secretaria</option>';
+    if (secretarias[peca.cliente]) {
+        secretarias[peca.cliente].forEach(secretaria => {
+            editSecretariaSelect.innerHTML += `<option value="${secretaria}">${secretaria}</option>`;
+        });
+    }
+    editSecretariaSelect.value = peca.secretaria;
+
+    // Atualiza dropdown de tipo de peça
+    const editTipoPecaSelect = document.getElementById('edit-tipo-peca');
+    editTipoPecaSelect.innerHTML = '<option value="">Selecione o tipo</option>';
+    tiposPeca.forEach(tipo => {
+        editTipoPecaSelect.innerHTML += `<option value="${tipo}">${tipo}</option>`;
+    });
+    editTipoPecaSelect.value = peca.tipoPeca;
+
+    // Preenche outros campos
+    document.getElementById('edit-nome-peca').value = peca.nomePeca;
+    document.getElementById('edit-data-criacao').value = peca.dataCriacao;
+    document.getElementById('edit-data-veiculacao').value = peca.dataVeiculacao || '';
+    document.getElementById('edit-observacao').value = peca.observacao || '';
+
+    // Mostra preview da imagem atual
+    editPreviewImage.src = peca.comprovacao;
+    editFilePreview.style.display = 'block';
+    editArquivoSelecionado = null;
+
+    // Abre modal
+    modalEdicao.classList.add('active');
+}
+
+// Event listener para mudança de cliente no modal de edição
+document.getElementById('edit-cliente').addEventListener('change', function() {
+    const clienteSelecionado = this.value;
+    const editSecretariaSelect = document.getElementById('edit-secretaria');
+
+    editSecretariaSelect.innerHTML = '<option value="">Selecione uma secretaria</option>';
+
+    if (clienteSelecionado && secretarias[clienteSelecionado]) {
+        secretarias[clienteSelecionado].forEach(secretaria => {
+            editSecretariaSelect.innerHTML += `<option value="${secretaria}">${secretaria}</option>`;
+        });
+    }
+});
+
+// Event listener para upload de arquivo no modal de edição
+editFileInput.addEventListener('change', function(e) {
+    const file = e.target.files[0];
+
+    if (file) {
+        if (!file.type.startsWith('image/')) {
+            showMessage('Por favor, selecione apenas arquivos de imagem!', 'error');
+            return;
+        }
+
+        if (file.size > 5 * 1024 * 1024) {
+            showMessage('O arquivo deve ter no máximo 5MB!', 'error');
+            return;
+        }
+
+        editArquivoSelecionado = file;
+        const reader = new FileReader();
+
+        reader.onload = function(e) {
+            editPreviewImage.src = e.target.result;
+            editFilePreview.style.display = 'block';
+        };
+
+        reader.readAsDataURL(file);
+    }
+});
+
+// Remover arquivo de edição
+removeFileEditBtn.addEventListener('click', function() {
+    editFileInput.value = '';
+    editArquivoSelecionado = null;
+    // Mantém a imagem original
+    const pecaId = parseInt(document.getElementById('edit-id').value);
+    const peca = pecas.find(p => p.id === pecaId);
+    if (peca) {
+        editPreviewImage.src = peca.comprovacao;
+    }
+});
+
+// Fechar modal de edição
+modalCloseEdit.addEventListener('click', () => {
+    modalEdicao.classList.remove('active');
+    formEdicao.reset();
+    editArquivoSelecionado = null;
+});
+
+document.getElementById('btn-cancelar-edicao').addEventListener('click', () => {
+    modalEdicao.classList.remove('active');
+    formEdicao.reset();
+    editArquivoSelecionado = null;
+});
+
+modalEdicao.addEventListener('click', (e) => {
+    if (e.target === modalEdicao) {
+        modalEdicao.classList.remove('active');
+        formEdicao.reset();
+        editArquivoSelecionado = null;
+    }
+});
+
+// Salvar edição
+formEdicao.addEventListener('submit', function(e) {
+    e.preventDefault();
+
+    const pecaId = parseInt(document.getElementById('edit-id').value);
+    const pecaIndex = pecas.findIndex(p => p.id === pecaId);
+
+    if (pecaIndex === -1) {
+        showMessage('Peça não encontrada!', 'error');
+        return;
+    }
+
+    // Atualiza os dados da peça
+    pecas[pecaIndex].cliente = document.getElementById('edit-cliente').value;
+    pecas[pecaIndex].secretaria = document.getElementById('edit-secretaria').value;
+    pecas[pecaIndex].tipoPeca = document.getElementById('edit-tipo-peca').value;
+    pecas[pecaIndex].nomePeca = document.getElementById('edit-nome-peca').value;
+    pecas[pecaIndex].dataCriacao = document.getElementById('edit-data-criacao').value;
+    pecas[pecaIndex].dataVeiculacao = document.getElementById('edit-data-veiculacao').value || null;
+    pecas[pecaIndex].observacao = document.getElementById('edit-observacao').value || '';
+
+    // Atualiza a imagem se foi selecionada uma nova
+    if (editArquivoSelecionado) {
+        pecas[pecaIndex].comprovacao = editPreviewImage.src;
+    }
+
+    // Salva no localStorage
+    salvarPecas();
+
+    // Fecha modal
+    modalEdicao.classList.remove('active');
+    formEdicao.reset();
+    editArquivoSelecionado = null;
+
+    // Atualiza listagem
+    renderizarPecas();
+
+    // Mensagem de sucesso
+    showMessage('Peça atualizada com sucesso!', 'success');
+});
+
 // ==================== INICIALIZAÇÃO ====================
 document.addEventListener('DOMContentLoaded', () => {
     // Define data atual nos campos de data
@@ -466,4 +949,10 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('data-criacao').value = hoje;
     document.getElementById('rel-data-inicio').value = hoje;
     document.getElementById('rel-data-fim').value = hoje;
+
+    // Inicializa configurações
+    atualizarDropdowns();
+    renderizarClientes();
+    renderizarSecretarias();
+    renderizarTiposPeca();
 });
