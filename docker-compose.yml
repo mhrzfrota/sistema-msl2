@@ -35,7 +35,7 @@ services:
       db:
         condition: service_healthy
     ports:
-      - "8000:8000"
+      - "2021:8000"
 
   frontend:
     build:
