@@ -1,4 +1,53 @@
 // Sistema de Gestão de Peças - MSL2
+
+// ==================== SISTEMA DE AUTENTICAÇÃO ====================
+// Storage para usuários e sessão
+let usuarios = JSON.parse(localStorage.getItem('usuarios')) || [
+    {
+        id: 1,
+        username: 'admin',
+        password: 'admin123',
+        role: 'master',
+        nome: 'Administrador'
+    }
+];
+
+let usuarioAtual = JSON.parse(sessionStorage.getItem('usuarioAtual')) || null;
+
+// Definições de permissões
+const permissoes = {
+    master: {
+        nome: 'Master',
+        descricao: 'Acesso total ao sistema, relatórios e gráficos',
+        podeInserir: true,
+        podeEditar: true,
+        podeDeletar: true,
+        podeRelatorio: true,
+        podeAdmin: true,
+        podeConfig: true
+    },
+    social_media: {
+        nome: 'Social Media',
+        descricao: 'Pode inserir material e editar nomes e datas',
+        podeInserir: true,
+        podeEditar: true,
+        podeDeletar: false,
+        podeRelatorio: false,
+        podeAdmin: false,
+        podeConfig: false
+    },
+    financeiro: {
+        nome: 'Financeiro',
+        descricao: 'Pode editar o que está feito e gerar relatório',
+        podeInserir: false,
+        podeEditar: true,
+        podeDeletar: false,
+        podeRelatorio: true,
+        podeAdmin: false,
+        podeConfig: false
+    }
+};
+
 // Storage para armazenar as peças cadastradas
 let pecas = JSON.parse(localStorage.getItem('pecas')) || [];
 
@@ -86,6 +135,11 @@ removeFileBtn.addEventListener('click', function() {
 formCadastro.addEventListener('submit', function(e) {
     e.preventDefault();
 
+    // Verificar permissão
+    if (!verificarPermissao('inserir')) {
+        return;
+    }
+
     // Validação
     if (!arquivoSelecionado) {
         showMessage('Por favor, adicione a comprovação (print)!', 'error');
@@ -133,6 +187,11 @@ formCadastro.addEventListener('submit', function(e) {
 // ==================== GERAÇÃO DE RELATÓRIO ====================
 formRelatorio.addEventListener('submit', function(e) {
     e.preventDefault();
+
+    // Verificar permissão
+    if (!verificarPermissao('relatorio')) {
+        return;
+    }
 
     const cliente = document.getElementById('rel-cliente').value;
     const secretaria = document.getElementById('rel-secretaria').value;
@@ -479,6 +538,10 @@ function visualizarComprovacao(id) {
 }
 
 function deletarPeca(id) {
+    if (!verificarPermissao('deletar')) {
+        return;
+    }
+
     if (confirm('Tem certeza que deseja excluir esta peça?')) {
         pecas = pecas.filter(p => p.id !== id);
         salvarPecas();
@@ -856,6 +919,10 @@ let editArquivoSelecionado = null;
 
 // Função para abrir modal de edição
 function editarPeca(id) {
+    if (!verificarPermissao('editar')) {
+        return;
+    }
+
     const peca = pecas.find(p => p.id === id);
     if (!peca) return;
 
@@ -1018,6 +1085,307 @@ formEdicao.addEventListener('submit', function(e) {
     showMessage('Peça atualizada com sucesso!', 'success');
 });
 
+// ==================== SISTEMA DE AUTENTICAÇÃO E PERMISSÕES ====================
+
+// Toggle dropdown do usuário
+document.getElementById('user-avatar').addEventListener('click', (e) => {
+    e.stopPropagation();
+    document.getElementById('user-dropdown').classList.toggle('active');
+});
+
+// Fechar dropdown ao clicar fora
+document.addEventListener('click', () => {
+    document.getElementById('user-dropdown').classList.remove('active');
+});
+
+// Abrir modal de login
+function abrirLogin() {
+    document.getElementById('modal-login').classList.add('active');
+    document.getElementById('user-dropdown').classList.remove('active');
+}
+
+// Fechar modal de login
+const modalLogin = document.getElementById('modal-login');
+const modalCloseLogin = document.querySelector('.modal-close-login');
+
+modalCloseLogin.addEventListener('click', () => {
+    modalLogin.classList.remove('active');
+});
+
+modalLogin.addEventListener('click', (e) => {
+    if (e.target === modalLogin) {
+        modalLogin.classList.remove('active');
+    }
+});
+
+// Processo de login
+document.getElementById('form-login').addEventListener('submit', function(e) {
+    e.preventDefault();
+
+    const username = document.getElementById('login-username').value;
+    const password = document.getElementById('login-password').value;
+
+    const usuario = usuarios.find(u => u.username === username && u.password === password);
+
+    if (usuario) {
+        usuarioAtual = {
+            id: usuario.id,
+            username: usuario.username,
+            nome: usuario.nome || usuario.username,
+            role: usuario.role
+        };
+
+        sessionStorage.setItem('usuarioAtual', JSON.stringify(usuarioAtual));
+
+        atualizarInterfaceUsuario();
+        modalLogin.classList.remove('active');
+
+        document.getElementById('form-login').reset();
+        showMessage(`Bem-vindo, ${usuarioAtual.nome}!`, 'success');
+    } else {
+        showMessage('Usuário ou senha incorretos!', 'error');
+    }
+});
+
+// Logout
+function logout() {
+    if (confirm('Tem certeza que deseja sair?')) {
+        usuarioAtual = null;
+        sessionStorage.removeItem('usuarioAtual');
+        atualizarInterfaceUsuario();
+        showMessage('Você saiu do sistema', 'success');
+
+        // Fechar painel de admin se estiver aberto
+        document.getElementById('admin-panel').style.display = 'none';
+    }
+}
+
+// Atualizar interface baseado no usuário logado
+function atualizarInterfaceUsuario() {
+    const userNameDisplay = document.getElementById('user-name-display');
+    const dropdownUserName = document.getElementById('dropdown-user-name');
+    const dropdownUserRole = document.getElementById('dropdown-user-role');
+    const btnLogin = document.getElementById('btn-login');
+    const btnAdmin = document.getElementById('btn-admin');
+    const btnLogout = document.getElementById('btn-logout');
+
+    if (usuarioAtual) {
+        const perm = permissoes[usuarioAtual.role];
+
+        userNameDisplay.textContent = usuarioAtual.nome;
+        dropdownUserName.textContent = usuarioAtual.nome;
+        dropdownUserRole.textContent = perm.nome;
+
+        btnLogin.style.display = 'none';
+        btnLogout.style.display = 'flex';
+
+        // Mostrar botão admin apenas para usuários com permissão
+        if (perm.podeAdmin) {
+            btnAdmin.style.display = 'flex';
+        } else {
+            btnAdmin.style.display = 'none';
+        }
+
+        aplicarPermissoes();
+    } else {
+        userNameDisplay.textContent = 'Visitante';
+        dropdownUserName.textContent = 'Visitante';
+        dropdownUserRole.textContent = 'Sem permissão';
+
+        btnLogin.style.display = 'flex';
+        btnAdmin.style.display = 'none';
+        btnLogout.style.display = 'none';
+
+        removerPermissoes();
+    }
+}
+
+// Aplicar permissões na interface
+function aplicarPermissoes() {
+    if (!usuarioAtual) return;
+
+    const perm = permissoes[usuarioAtual.role];
+
+    // Controlar acesso às abas
+    const tabs = document.querySelectorAll('.tab-btn');
+    tabs.forEach(tab => {
+        const tabName = tab.dataset.tab;
+
+        if (tabName === 'configuracao' && !perm.podeConfig) {
+            tab.style.display = 'none';
+        } else if (tabName === 'relatorio' && !perm.podeRelatorio) {
+            tab.style.display = 'none';
+        } else {
+            tab.style.display = '';
+        }
+    });
+
+    // Controlar botões de ação
+    if (!perm.podeInserir) {
+        // Ocultar aba de cadastro
+        const cadastroTab = document.querySelector('[data-tab="cadastro"]');
+        if (cadastroTab) cadastroTab.style.display = 'none';
+    }
+}
+
+// Remover permissões (voltar ao padrão visitante)
+function removerPermissoes() {
+    // Ocultar todas as abas para visitantes
+    const tabs = document.querySelectorAll('.tab-btn');
+    tabs.forEach(tab => {
+        const tabName = tab.dataset.tab;
+        if (tabName !== 'listagem') {
+            tab.style.display = 'none';
+        }
+    });
+
+    // Ir para aba de listagem
+    tabs.forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(tc => tc.classList.remove('active'));
+
+    const listagemTab = document.querySelector('[data-tab="listagem"]');
+    if (listagemTab) {
+        listagemTab.classList.add('active');
+        document.getElementById('listagem').classList.add('active');
+    }
+}
+
+// Verificar permissão antes de executar ação
+function verificarPermissao(acao) {
+    if (!usuarioAtual) {
+        showMessage('Você precisa estar logado para realizar esta ação!', 'error');
+        abrirLogin();
+        return false;
+    }
+
+    const perm = permissoes[usuarioAtual.role];
+
+    if (acao === 'inserir' && !perm.podeInserir) {
+        showMessage('Você não tem permissão para inserir peças!', 'error');
+        return false;
+    }
+    if (acao === 'editar' && !perm.podeEditar) {
+        showMessage('Você não tem permissão para editar peças!', 'error');
+        return false;
+    }
+    if (acao === 'deletar' && !perm.podeDeletar) {
+        showMessage('Você não tem permissão para deletar peças!', 'error');
+        return false;
+    }
+    if (acao === 'relatorio' && !perm.podeRelatorio) {
+        showMessage('Você não tem permissão para gerar relatórios!', 'error');
+        return false;
+    }
+
+    return true;
+}
+
+// ==================== PAINEL DE ADMINISTRAÇÃO ====================
+
+// Abrir painel de administração
+function abrirAdmin() {
+    if (!usuarioAtual || !permissoes[usuarioAtual.role].podeAdmin) {
+        showMessage('Você não tem permissão para acessar a administração!', 'error');
+        return;
+    }
+
+    document.getElementById('admin-panel').style.display = 'block';
+    document.getElementById('user-dropdown').classList.remove('active');
+    renderizarUsuarios();
+}
+
+// Fechar painel de administração
+function fecharAdmin() {
+    document.getElementById('admin-panel').style.display = 'none';
+}
+
+// Salvar usuários
+function salvarUsuarios() {
+    localStorage.setItem('usuarios', JSON.stringify(usuarios));
+}
+
+// Renderizar lista de usuários
+function renderizarUsuarios() {
+    const lista = document.getElementById('lista-usuarios');
+    lista.innerHTML = '';
+
+    usuarios.forEach(usuario => {
+        const perm = permissoes[usuario.role];
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><strong>${usuario.nome || usuario.username}</strong></td>
+            <td><span class="permission-badge ${usuario.role}">${perm.nome}</span></td>
+            <td>${perm.descricao}</td>
+            <td>
+                <button class="btn-table btn-table-delete" onclick="deletarUsuario(${usuario.id})">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="3 6 5 6 21 6"/>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                    </svg>
+                    Excluir
+                </button>
+            </td>
+        `;
+        lista.appendChild(tr);
+    });
+}
+
+// Cadastrar novo usuário
+document.getElementById('form-usuario').addEventListener('submit', function(e) {
+    e.preventDefault();
+
+    const username = document.getElementById('novo-usuario').value.trim();
+    const password = document.getElementById('nova-senha').value;
+    const role = document.getElementById('nova-permissao').value;
+
+    if (!username || !password || !role) {
+        showMessage('Preencha todos os campos!', 'error');
+        return;
+    }
+
+    // Verificar se usuário já existe
+    if (usuarios.find(u => u.username === username)) {
+        showMessage('Este usuário já existe!', 'error');
+        return;
+    }
+
+    const novoUsuario = {
+        id: Date.now(),
+        username: username,
+        password: password,
+        role: role,
+        nome: username
+    };
+
+    usuarios.push(novoUsuario);
+    salvarUsuarios();
+    renderizarUsuarios();
+
+    this.reset();
+    showMessage('Usuário cadastrado com sucesso!', 'success');
+});
+
+// Deletar usuário
+function deletarUsuario(id) {
+    // Não permitir deletar o próprio usuário ou o admin padrão
+    if (usuarioAtual && usuarioAtual.id === id) {
+        showMessage('Você não pode deletar seu próprio usuário!', 'error');
+        return;
+    }
+
+    if (id === 1) {
+        showMessage('Não é possível deletar o administrador padrão!', 'error');
+        return;
+    }
+
+    if (confirm('Tem certeza que deseja excluir este usuário?')) {
+        usuarios = usuarios.filter(u => u.id !== id);
+        salvarUsuarios();
+        renderizarUsuarios();
+        showMessage('Usuário excluído com sucesso!', 'success');
+    }
+}
+
 // ==================== INICIALIZAÇÃO ====================
 document.addEventListener('DOMContentLoaded', () => {
     // Define data atual nos campos de data
@@ -1031,4 +1399,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderizarClientes();
     renderizarSecretarias();
     renderizarTiposPeca();
+
+    // Inicializa interface de usuário
+    atualizarInterfaceUsuario();
 });
