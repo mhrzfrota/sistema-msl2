@@ -1,0 +1,23 @@
+sigepre.mslestrategia.com.br {
+    encode gzip zstd
+
+    handle_path /api/* {
+        reverse_proxy 127.0.0.1:2021
+    }
+
+    handle_path /auth/* {
+        reverse_proxy 127.0.0.1:2021
+    }
+
+    handle_path /health {
+        reverse_proxy 127.0.0.1:2021
+    }
+
+    handle_path /db-check {
+        reverse_proxy 127.0.0.1:2021
+    }
+
+    handle /* {
+        reverse_proxy 127.0.0.1:8080
+    }
+}
