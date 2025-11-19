@@ -35,8 +35,8 @@ def create_app() -> FastAPI:
     )
 
     @app.get("/health")
-    def health() -> dict[str, str]:
-        return {"status": "ok"}
+    def health() -> dict[str, str | bool]:
+        return {"status": "ok", "authDisabled": settings.auth_disabled}
 
     @app.get("/db-check")
     def db_check(db: Session = Depends(get_db)) -> dict[str, str]:

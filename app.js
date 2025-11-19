@@ -2,7 +2,7 @@
 
 // ==================== SISTEMA DE AUTENTICAÇÃO ====================
 const API_BASE_URL = 'http://localhost:8000';
-const AUTH_DISABLED = true; // Defina como false para reativar o fluxo de login padrão
+let authDisabled = false; // Será sincronizado com o backend via /health
 const DEFAULT_ADMIN_USER = {
     id: 0,
     username: 'dev-admin',
@@ -14,10 +14,6 @@ const DEFAULT_ADMIN_TOKEN = 'dev-mode-token';
 // Estado da aplicação sincronizado com o backend
 let authToken = localStorage.getItem('msl_token') || null;
 let usuarioAtual = JSON.parse(localStorage.getItem('msl_usuario') || 'null');
-
-if (AUTH_DISABLED) {
-    setAuthData(DEFAULT_ADMIN_TOKEN, DEFAULT_ADMIN_USER);
-}
 let usuarios = [];
 let pecas = [];
 let clientes = [];
@@ -70,6 +66,24 @@ function setAuthData(token, user) {
     } else {
         localStorage.removeItem('msl_token');
         localStorage.removeItem('msl_usuario');
+    }
+}
+
+function aplicarModoAutenticacao() {
+    if (authDisabled) {
+        setAuthData(DEFAULT_ADMIN_TOKEN, DEFAULT_ADMIN_USER);
+    } else if (authToken === DEFAULT_ADMIN_TOKEN) {
+        setAuthData(null, null);
+    }
+}
+
+async function sincronizarModoAutenticacao() {
+    try {
+        const status = await apiRequest('/health', { auth: false });
+        authDisabled = Boolean(status && status.authDisabled);
+        aplicarModoAutenticacao();
+    } catch (error) {
+        console.warn('Não foi possível verificar o modo de autenticação.', error);
     }
 }
 
@@ -1212,7 +1226,7 @@ document.addEventListener('click', () => {
 
 // Abrir modal de login
 function abrirLogin() {
-    if (AUTH_DISABLED) {
+    if (authDisabled) {
         showMessage('Modo teste ativo: login está desabilitado.', 'info');
         return;
     }
@@ -1238,7 +1252,7 @@ modalLogin.addEventListener('click', (e) => {
 document.getElementById('form-login').addEventListener('submit', async function(e) {
     e.preventDefault();
 
-    if (AUTH_DISABLED) {
+    if (authDisabled) {
         showMessage('Modo teste ativo: autenticação manual está desabilitada.', 'info');
         modalLogin.classList.remove('active');
         return;
@@ -1275,7 +1289,7 @@ document.getElementById('form-login').addEventListener('submit', async function(
 
 // Logout
 async function logout() {
-    if (AUTH_DISABLED) {
+    if (authDisabled) {
         showMessage('Modo teste ativo: logout está desabilitado.', 'info');
         return;
     }
@@ -1548,6 +1562,8 @@ async function deletarUsuario(id) {
 
 // ==================== INICIALIZAÇÃO ====================
 document.addEventListener('DOMContentLoaded', async () => {
+    await sincronizarModoAutenticacao();
+
     // Define data atual nos campos de data
     const hoje = new Date().toISOString().split('T')[0];
     document.getElementById('data-criacao').value = hoje;
