@@ -1,7 +1,7 @@
 // Sistema de Gestão de Peças - MSL2
 
 // ==================== SISTEMA DE AUTENTICAÇÃO ====================
-const API_BASE_URL = 'http://localhost:8000';
+const API_BASE_URL = window.location.origin || 'http://localhost:8000';
 let authDisabled = false; // Será sincronizado com o backend via /health
 const DEFAULT_ADMIN_USER = {
     id: 0,
