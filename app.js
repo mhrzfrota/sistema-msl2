@@ -1,18 +1,31 @@
 // Sistema de Gestão de Peças - MSL2
 
 // ==================== SISTEMA DE AUTENTICAÇÃO ====================
-// Storage para usuários e sessão
-let usuarios = JSON.parse(localStorage.getItem('usuarios')) || [
-    {
-        id: 1,
-        username: 'admin',
-        password: 'admin123',
-        role: 'master',
-        nome: 'Administrador'
-    }
-];
+const API_BASE_URL = 'http://localhost:8000';
+const AUTH_DISABLED = true; // Defina como false para reativar o fluxo de login padrão
+const DEFAULT_ADMIN_USER = {
+    id: 0,
+    username: 'dev-admin',
+    nome: 'Administrador (modo teste)',
+    role: 'master'
+};
+const DEFAULT_ADMIN_TOKEN = 'dev-mode-token';
 
-let usuarioAtual = JSON.parse(sessionStorage.getItem('usuarioAtual')) || null;
+// Estado da aplicação sincronizado com o backend
+let authToken = localStorage.getItem('msl_token') || null;
+let usuarioAtual = JSON.parse(localStorage.getItem('msl_usuario') || 'null');
+
+if (AUTH_DISABLED) {
+    setAuthData(DEFAULT_ADMIN_TOKEN, DEFAULT_ADMIN_USER);
+}
+let usuarios = [];
+let pecas = [];
+let clientes = [];
+let clienteIdMap = {};
+let secretarias = {};
+let secretariaIdMap = {};
+let tiposPeca = [];
+let tipoPecaIdMap = {};
 
 // Definições de permissões
 const permissoes = {
@@ -48,21 +61,124 @@ const permissoes = {
     }
 };
 
-// Storage para armazenar as peças cadastradas
-let pecas = JSON.parse(localStorage.getItem('pecas')) || [];
+function setAuthData(token, user) {
+    authToken = token;
+    usuarioAtual = user;
+    if (token && user) {
+        localStorage.setItem('msl_token', token);
+        localStorage.setItem('msl_usuario', JSON.stringify(user));
+    } else {
+        localStorage.removeItem('msl_token');
+        localStorage.removeItem('msl_usuario');
+    }
+}
 
-// Storage para configurações
-let clientes = JSON.parse(localStorage.getItem('clientes')) || [
-    'Cliente A', 'Cliente B', 'Cliente C'
-];
-let secretarias = JSON.parse(localStorage.getItem('secretarias')) || {
-    'Cliente A': ['Secretaria de Saúde', 'Secretaria de Educação'],
-    'Cliente B': ['Secretaria de Cultura', 'Secretaria de Obras'],
-    'Cliente C': ['Secretaria de Turismo']
-};
-let tiposPeca = JSON.parse(localStorage.getItem('tiposPeca')) || [
-    'Matéria', 'Nota', 'Reportagem', 'Entrevista', 'Release'
-];
+async function apiRequest(path, { method = 'GET', body, headers = {}, params, auth = true } = {}) {
+    const base = API_BASE_URL || window.location.origin;
+    const url = new URL(path, base.endsWith('/') ? base : `${base}/`);
+    if (params) {
+        Object.entries(params).forEach(([key, value]) => {
+            if (value !== undefined && value !== null && value !== '') {
+                url.searchParams.append(key, value);
+            }
+        });
+    }
+
+    const config = {
+        method,
+        headers: {
+            'Content-Type': 'application/json',
+            ...headers,
+        },
+    };
+
+    if (body) {
+        config.body = JSON.stringify(body);
+    } else if (method === 'GET') {
+        delete config.headers['Content-Type'];
+    }
+
+    if (auth && authToken) {
+        config.headers.Authorization = `Bearer ${authToken}`;
+    }
+
+    let response;
+    try {
+        response = await fetch(url.toString(), config);
+    } catch (error) {
+        throw new Error('Não foi possível conectar ao servidor.');
+    }
+    if (!response.ok) {
+        let detail = response.statusText;
+        try {
+            const data = await response.json();
+            detail = data.detail || data.message || JSON.stringify(data);
+        } catch {
+            // Ignora parse de erro
+        }
+        throw new Error(detail || 'Erro ao comunicar com o servidor.');
+    }
+
+    if (response.status === 204) {
+        return null;
+    }
+
+    try {
+        return await response.json();
+    } catch {
+        return null;
+    }
+}
+
+async function carregarClientes() {
+    const data = await apiRequest('/api/clientes');
+    clientes = data.map(cliente => cliente.nome);
+    clienteIdMap = {};
+    data.forEach(cliente => {
+        clienteIdMap[cliente.nome] = cliente.id;
+    });
+}
+
+async function carregarSecretariasDoCliente(nome) {
+    const clienteId = clienteIdMap[nome];
+    if (!clienteId) {
+        return;
+    }
+    const data = await apiRequest(`/api/clientes/${clienteId}/secretarias`);
+    secretarias[nome] = data.map(sec => sec.nome);
+    data.forEach(sec => {
+        secretariaIdMap[`${nome}::${sec.nome}`] = sec.id;
+    });
+}
+
+async function carregarSecretarias() {
+    secretarias = {};
+    secretariaIdMap = {};
+    await Promise.all(clientes.map((nome) => carregarSecretariasDoCliente(nome)));
+}
+
+async function carregarTiposPeca() {
+    const data = await apiRequest('/api/tipos-peca');
+    tiposPeca = data.map(tipo => tipo.nome);
+    tipoPecaIdMap = {};
+    data.forEach(tipo => {
+        tipoPecaIdMap[tipo.nome] = tipo.id;
+    });
+}
+
+async function carregarDadosBase() {
+    if (!authToken) {
+        return;
+    }
+    await carregarClientes();
+    await carregarSecretarias();
+    await carregarTiposPeca();
+    atualizarDropdowns();
+    renderizarClientes();
+    renderizarSecretarias();
+    renderizarTiposPeca();
+}
+
 
 // Elementos do DOM
 const tabs = document.querySelectorAll('.tab-btn');
@@ -132,7 +248,7 @@ removeFileBtn.addEventListener('click', function() {
 });
 
 // ==================== CADASTRO DE PEÇA ====================
-formCadastro.addEventListener('submit', function(e) {
+formCadastro.addEventListener('submit', async function(e) {
     e.preventDefault();
 
     // Verificar permissão
@@ -154,7 +270,6 @@ formCadastro.addEventListener('submit', function(e) {
 
     // Captura dos dados
     const novaPeca = {
-        id: Date.now(),
         cliente: document.getElementById('cliente').value,
         secretaria: document.getElementById('secretaria').value,
         tipoPeca: document.getElementById('tipo-peca').value,
@@ -162,30 +277,28 @@ formCadastro.addEventListener('submit', function(e) {
         dataCriacao: document.getElementById('data-criacao').value,
         dataVeiculacao: document.getElementById('data-veiculacao').value || null,
         observacao: document.getElementById('observacao').value || '',
-        comprovacao: previewImage.src,
-        dataCadastro: new Date().toISOString()
+        comprovacao: previewImage.src
     };
 
-    // Adiciona ao array
-    pecas.push(novaPeca);
+    try {
+        await apiRequest('/api/pecas', { method: 'POST', body: novaPeca });
+        await renderizarPecas();
 
-    // Salva no localStorage
-    salvarPecas();
+        formCadastro.reset();
+        fileInput.value = '';
+        arquivoSelecionado = null;
+        filePlaceholder.style.display = 'block';
+        filePreview.style.display = 'none';
+        previewImage.src = '';
 
-    // Limpa o formulário
-    formCadastro.reset();
-    fileInput.value = '';
-    arquivoSelecionado = null;
-    filePlaceholder.style.display = 'block';
-    filePreview.style.display = 'none';
-    previewImage.src = '';
-
-    // Mensagem de sucesso
-    showMessage('Peça cadastrada com sucesso!', 'success');
+        showMessage('Peça cadastrada com sucesso!', 'success');
+    } catch (error) {
+        showMessage(error.message || 'Erro ao cadastrar peça.', 'error');
+    }
 });
 
 // ==================== GERAÇÃO DE RELATÓRIO ====================
-formRelatorio.addEventListener('submit', function(e) {
+formRelatorio.addEventListener('submit', async function(e) {
     e.preventDefault();
 
     // Verificar permissão
@@ -203,83 +316,49 @@ formRelatorio.addEventListener('submit', function(e) {
         showMessage('A data de início não pode ser maior que a data fim!', 'error');
         return;
     }
+    try {
+        const relatorio = await apiRequest('/api/relatorios/pecas', {
+            params: {
+                cliente,
+                secretaria,
+                dataInicio,
+                dataFim,
+            },
+        });
 
-    // Filtra peças
-    let pecasFiltradas = pecas.filter(peca => {
-        let matches = true;
-
-        // Filtro por cliente
-        if (cliente && peca.cliente !== cliente) {
-            matches = false;
+        if (!relatorio || !relatorio.linhas || relatorio.linhas.length === 0) {
+            showMessage('Nenhuma peça encontrada com os filtros selecionados!', 'error');
+            return;
         }
 
-        // Filtro por secretaria
-        if (secretaria && peca.secretaria !== secretaria) {
-            matches = false;
-        }
-
-        // Filtro por data
-        const dataPeca = new Date(peca.dataCriacao);
-        const inicio = new Date(dataInicio);
-        const fim = new Date(dataFim);
-
-        if (dataPeca < inicio || dataPeca > fim) {
-            matches = false;
-        }
-
-        return matches;
-    });
-
-    if (pecasFiltradas.length === 0) {
-        showMessage('Nenhuma peça encontrada com os filtros selecionados!', 'error');
-        return;
+        renderizarRelatorio(relatorio);
+    } catch (error) {
+        showMessage(error.message || 'Erro ao gerar relatório.', 'error');
     }
-
-    // Gera relatório
-    gerarRelatorio(pecasFiltradas, cliente, secretaria, dataInicio, dataFim);
 });
 
-function gerarRelatorio(pecasFiltradas, cliente, secretaria, dataInicio, dataFim) {
+function renderizarRelatorio(relatorio) {
     const resultadoDiv = document.getElementById('resultado-relatorio');
     const tabelaBody = document.getElementById('tabela-relatorio');
+    const { info, stats, linhas } = relatorio;
 
     // Atualiza informações do cabeçalho
-    document.getElementById('info-cliente').textContent = cliente || 'Todos os clientes';
-    document.getElementById('info-secretaria').textContent = secretaria || 'Todas as secretarias';
-    document.getElementById('info-periodo').textContent = `${formatarData(dataInicio)} até ${formatarData(dataFim)}`;
+    document.getElementById('info-cliente').textContent = info.cliente || 'Todos os clientes';
+    document.getElementById('info-secretaria').textContent = info.secretaria || 'Todas as secretarias';
+    const periodo = info.dataInicio && info.dataFim
+        ? `${formatarData(info.dataInicio)} até ${formatarData(info.dataFim)}`
+        : '-';
+    document.getElementById('info-periodo').textContent = periodo;
 
     // Atualiza estatísticas
-    document.getElementById('stat-total').textContent = pecasFiltradas.length;
-
-    // Conta secretarias únicas
-    const secretariasUnicas = [...new Set(pecasFiltradas.map(p => p.secretaria))];
-    document.getElementById('stat-secretarias').textContent = secretariasUnicas.length;
-
-    // Agrupa peças por secretaria e tipo
-    const agrupamento = {};
-
-    pecasFiltradas.forEach(peca => {
-        const chave = `${peca.secretaria}|${peca.tipoPeca}|${peca.nomePeca}`;
-
-        if (!agrupamento[chave]) {
-            agrupamento[chave] = {
-                secretaria: peca.secretaria,
-                tipoPeca: peca.tipoPeca,
-                nomePeca: peca.nomePeca,
-                dataCriacao: peca.dataCriacao,
-                dataVeiculacao: peca.dataVeiculacao,
-                quantidade: 0
-            };
-        }
-
-        agrupamento[chave].quantidade++;
-    });
+    document.getElementById('stat-total').textContent = stats.totalPecas;
+    document.getElementById('stat-secretarias').textContent = stats.totalSecretarias;
 
     // Limpa tabela
     tabelaBody.innerHTML = '';
 
     // Preenche tabela
-    Object.values(agrupamento).forEach(item => {
+    linhas.forEach(item => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td><strong>${item.secretaria}</strong></td>
@@ -300,18 +379,22 @@ function gerarRelatorio(pecasFiltradas, cliente, secretaria, dataInicio, dataFim
 // ==================== LISTAGEM DE PEÇAS ====================
 let viewMode = 'grid'; // 'grid' ou 'list'
 
-function renderizarPecas(filtro = '') {
+async function renderizarPecas() {
     const listaPecas = document.getElementById('lista-pecas');
     const emptyState = document.getElementById('empty-state');
 
-    if (pecas.length === 0) {
+    if (!authToken) {
         listaPecas.style.display = 'none';
         emptyState.style.display = 'block';
+        emptyState.querySelector('h3').textContent = 'Faça login para visualizar as peças';
+        emptyState.querySelector('p').textContent = 'Clique no avatar no canto superior e entre com seu usuário.';
         return;
     }
 
-    // Aplica filtros
-    let pecasFiltradas = pecas;
+    listaPecas.className = viewMode === 'grid' ? 'pecas-grid' : 'pecas-list';
+    listaPecas.style.display = viewMode === 'grid' ? 'grid' : 'flex';
+    listaPecas.innerHTML = '<p style="grid-column: 1 / -1; text-align:center;">Carregando peças...</p>';
+    emptyState.style.display = 'none';
 
     const filterCliente = document.getElementById('filter-cliente').value;
     const filterSecretaria = document.getElementById('filter-secretaria').value;
@@ -319,145 +402,124 @@ function renderizarPecas(filtro = '') {
     const filterDataInicio = document.getElementById('filter-data-inicio').value;
     const filterDataFim = document.getElementById('filter-data-fim').value;
 
-    if (filterCliente) {
-        pecasFiltradas = pecasFiltradas.filter(peca => peca.cliente === filterCliente);
-    }
-
-    if (filterSecretaria) {
-        pecasFiltradas = pecasFiltradas.filter(peca => peca.secretaria === filterSecretaria);
-    }
-
-    if (filterTipo) {
-        pecasFiltradas = pecasFiltradas.filter(peca => peca.tipoPeca === filterTipo);
-    }
-
-    // Filtro por data
-    if (filterDataInicio && filterDataFim) {
-        pecasFiltradas = pecasFiltradas.filter(peca => {
-            const dataPeca = new Date(peca.dataCriacao);
-            const dataInicio = new Date(filterDataInicio);
-            const dataFim = new Date(filterDataFim);
-            return dataPeca >= dataInicio && dataPeca <= dataFim;
+    try {
+        const data = await apiRequest('/api/pecas', {
+            params: {
+                cliente: filterCliente,
+                secretaria: filterSecretaria,
+                tipoPeca: filterTipo,
+                dataInicio: filterDataInicio,
+                dataFim: filterDataFim,
+            },
         });
-    } else if (filterDataInicio) {
-        pecasFiltradas = pecasFiltradas.filter(peca => {
-            const dataPeca = new Date(peca.dataCriacao);
-            const dataInicio = new Date(filterDataInicio);
-            return dataPeca >= dataInicio;
-        });
-    } else if (filterDataFim) {
-        pecasFiltradas = pecasFiltradas.filter(peca => {
-            const dataPeca = new Date(peca.dataCriacao);
-            const dataFim = new Date(filterDataFim);
-            return dataPeca <= dataFim;
-        });
-    }
+        pecas = data || [];
 
-    if (pecasFiltradas.length === 0) {
+        if (pecas.length === 0) {
+            listaPecas.style.display = 'none';
+            emptyState.style.display = 'block';
+            emptyState.querySelector('h3').textContent = 'Nenhuma peça encontrada';
+            emptyState.querySelector('p').textContent = 'Tente ajustar os filtros de busca';
+            return;
+        }
+
+        listaPecas.innerHTML = '';
+        pecas.sort((a, b) => new Date(b.dataCadastro) - new Date(a.dataCadastro));
+
+        pecas.forEach(peca => {
+            const card = document.createElement('div');
+            card.className = 'peca-card';
+            card.innerHTML = `
+                <div class="peca-card-header">
+                    <div class="peca-card-title">
+                        <span class="peca-badge">${peca.tipoPeca}</span>
+                        <h3>${peca.nomePeca}</h3>
+                    </div>
+                </div>
+                <div class="peca-card-body">
+                    <div class="peca-info">
+                        <div class="peca-info-item">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                                <circle cx="12" cy="7" r="4"/>
+                            </svg>
+                            <strong>Cliente:</strong>
+                            <span>${peca.cliente}</span>
+                        </div>
+                        <div class="peca-info-item">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                                <polyline points="9 22 9 12 15 12 15 22"/>
+                            </svg>
+                            <strong>Secretaria:</strong>
+                            <span>${peca.secretaria}</span>
+                        </div>
+                        <div class="peca-info-item">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                                <line x1="16" y1="2" x2="16" y2="6"/>
+                                <line x1="8" y1="2" x2="8" y2="6"/>
+                                <line x1="3" y1="10" x2="21" y2="10"/>
+                            </svg>
+                            <strong>Criação:</strong>
+                            <span>${formatarData(peca.dataCriacao)}</span>
+                        </div>
+                        ${peca.dataVeiculacao ? `
+                        <div class="peca-info-item">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/>
+                                <polyline points="12 6 12 12 16 14"/>
+                            </svg>
+                            <strong>Veiculação:</strong>
+                            <span>${formatarData(peca.dataVeiculacao)}</span>
+                        </div>
+                        ` : ''}
+                        ${peca.observacao ? `
+                        <div class="peca-info-item" style="grid-column: 1 / -1; margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid var(--border-color);">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                <polyline points="14 2 14 8 20 8"/>
+                                <line x1="16" y1="13" x2="8" y2="13"/>
+                                <line x1="16" y1="17" x2="8" y2="17"/>
+                            </svg>
+                            <strong>Observação:</strong>
+                            <span style="flex: 1;">${peca.observacao}</span>
+                        </div>
+                        ` : ''}
+                    </div>
+                </div>
+                <div class="peca-card-footer">
+                    <button class="btn-small btn-view" onclick="visualizarComprovacao(${peca.id})">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                            <circle cx="12" cy="12" r="3"/>
+                        </svg>
+                        Ver Comprovação
+                    </button>
+                    <button class="btn-small btn-edit" onclick="editarPeca(${peca.id})">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                        </svg>
+                        Editar
+                    </button>
+                    <button class="btn-small btn-delete" onclick="deletarPeca(${peca.id})">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="3 6 5 6 21 6"/>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                        </svg>
+                        Excluir
+                    </button>
+                </div>
+            `;
+            listaPecas.appendChild(card);
+        });
+    } catch (error) {
         listaPecas.style.display = 'none';
         emptyState.style.display = 'block';
-        emptyState.querySelector('h3').textContent = 'Nenhuma peça encontrada';
-        emptyState.querySelector('p').textContent = 'Tente ajustar os filtros de busca';
-        return;
+        emptyState.querySelector('h3').textContent = 'Erro ao carregar peças';
+        emptyState.querySelector('p').textContent = error.message || 'Tente novamente mais tarde.';
+        showMessage(error.message || 'Erro ao carregar peças.', 'error');
     }
-
-    // Atualiza classe baseado no modo de visualização
-    listaPecas.className = viewMode === 'grid' ? 'pecas-grid' : 'pecas-list';
-    listaPecas.style.display = viewMode === 'grid' ? 'grid' : 'flex';
-    emptyState.style.display = 'none';
-    listaPecas.innerHTML = '';
-
-    // Ordena por data mais recente
-    pecasFiltradas.sort((a, b) => new Date(b.dataCadastro) - new Date(a.dataCadastro));
-
-    pecasFiltradas.forEach(peca => {
-        const card = document.createElement('div');
-        card.className = 'peca-card';
-        card.innerHTML = `
-            <div class="peca-card-header">
-                <div class="peca-card-title">
-                    <span class="peca-badge">${peca.tipoPeca}</span>
-                    <h3>${peca.nomePeca}</h3>
-                </div>
-            </div>
-            <div class="peca-card-body">
-                <div class="peca-info">
-                    <div class="peca-info-item">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                            <circle cx="12" cy="7" r="4"/>
-                        </svg>
-                        <strong>Cliente:</strong>
-                        <span>${peca.cliente}</span>
-                    </div>
-                    <div class="peca-info-item">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-                            <polyline points="9 22 9 12 15 12 15 22"/>
-                        </svg>
-                        <strong>Secretaria:</strong>
-                        <span>${peca.secretaria}</span>
-                    </div>
-                    <div class="peca-info-item">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-                            <line x1="16" y1="2" x2="16" y2="6"/>
-                            <line x1="8" y1="2" x2="8" y2="6"/>
-                            <line x1="3" y1="10" x2="21" y2="10"/>
-                        </svg>
-                        <strong>Criação:</strong>
-                        <span>${formatarData(peca.dataCriacao)}</span>
-                    </div>
-                    ${peca.dataVeiculacao ? `
-                    <div class="peca-info-item">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="12" cy="12" r="10"/>
-                            <polyline points="12 6 12 12 16 14"/>
-                        </svg>
-                        <strong>Veiculação:</strong>
-                        <span>${formatarData(peca.dataVeiculacao)}</span>
-                    </div>
-                    ` : ''}
-                    ${peca.observacao ? `
-                    <div class="peca-info-item" style="grid-column: 1 / -1; margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid var(--border-color);">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                            <polyline points="14 2 14 8 20 8"/>
-                            <line x1="16" y1="13" x2="8" y2="13"/>
-                            <line x1="16" y1="17" x2="8" y2="17"/>
-                        </svg>
-                        <strong>Observação:</strong>
-                        <span style="flex: 1;">${peca.observacao}</span>
-                    </div>
-                    ` : ''}
-                </div>
-            </div>
-            <div class="peca-card-footer">
-                <button class="btn-small btn-view" onclick="visualizarComprovacao(${peca.id})">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                        <circle cx="12" cy="12" r="3"/>
-                    </svg>
-                    Ver Comprovação
-                </button>
-                <button class="btn-small btn-edit" onclick="editarPeca(${peca.id})">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                    </svg>
-                    Editar
-                </button>
-                <button class="btn-small btn-delete" onclick="deletarPeca(${peca.id})">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polyline points="3 6 5 6 21 6"/>
-                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                    </svg>
-                    Excluir
-                </button>
-            </div>
-        `;
-        listaPecas.appendChild(card);
-    });
 }
 
 // Event listeners para filtros
@@ -537,25 +599,27 @@ function visualizarComprovacao(id) {
     }
 }
 
-function deletarPeca(id) {
+async function deletarPeca(id) {
     if (!verificarPermissao('deletar')) {
         return;
     }
 
     if (confirm('Tem certeza que deseja excluir esta peça?')) {
-        pecas = pecas.filter(p => p.id !== id);
-        salvarPecas();
-        renderizarPecas();
-        showMessage('Peça excluída com sucesso!', 'success');
+        try {
+            await apiRequest(`/api/pecas/${id}`, { method: 'DELETE' });
+            await renderizarPecas();
+            showMessage('Peça excluída com sucesso!', 'success');
+        } catch (error) {
+            showMessage(error.message || 'Erro ao excluir peça.', 'error');
+        }
     }
 }
 
-function salvarPecas() {
-    localStorage.setItem('pecas', JSON.stringify(pecas));
-}
-
 function formatarData(dataString) {
-    const data = new Date(dataString + 'T00:00:00');
+    if (!dataString) {
+        return '-';
+    }
+    const data = new Date(dataString.includes('T') ? dataString : `${dataString}T00:00:00`);
     return data.toLocaleDateString('pt-BR', {
         day: '2-digit',
         month: '2-digit',
@@ -601,11 +665,8 @@ document.getElementById('btn-exportar').addEventListener('click', function() {
 });
 
 // ==================== CONFIGURAÇÃO ====================
-function salvarConfig() {
-    localStorage.setItem('clientes', JSON.stringify(clientes));
-    localStorage.setItem('secretarias', JSON.stringify(secretarias));
-    localStorage.setItem('tiposPeca', JSON.stringify(tiposPeca));
-    atualizarDropdowns();
+async function atualizarConfiguracoesUI() {
+    await carregarDadosBase();
 }
 
 function atualizarDropdowns() {
@@ -690,7 +751,10 @@ function renderizarClientes() {
 }
 
 // Adicionar cliente
-document.getElementById('btn-add-cliente').addEventListener('click', () => {
+document.getElementById('btn-add-cliente').addEventListener('click', async () => {
+    if (!verificarPermissao('config')) {
+        return;
+    }
     const input = document.getElementById('novo-cliente');
     const nomeCliente = input.value.trim();
 
@@ -704,23 +768,34 @@ document.getElementById('btn-add-cliente').addEventListener('click', () => {
         return;
     }
 
-    clientes.push(nomeCliente);
-    secretarias[nomeCliente] = [];
-    salvarConfig();
-    renderizarClientes();
-    input.value = '';
-    showMessage('Cliente adicionado com sucesso!', 'success');
+    try {
+        await apiRequest('/api/clientes', { method: 'POST', body: { nome: nomeCliente } });
+        await atualizarConfiguracoesUI();
+        input.value = '';
+        showMessage('Cliente adicionado com sucesso!', 'success');
+    } catch (error) {
+        showMessage(error.message || 'Erro ao adicionar cliente.', 'error');
+    }
 });
 
 // Deletar cliente
-function deletarCliente(nomeCliente) {
+async function deletarCliente(nomeCliente) {
+    if (!verificarPermissao('config')) {
+        return;
+    }
     if (confirm(`Tem certeza que deseja excluir o cliente "${nomeCliente}"? Isso também excluirá todas as secretarias associadas.`)) {
-        clientes = clientes.filter(c => c !== nomeCliente);
-        delete secretarias[nomeCliente];
-        salvarConfig();
-        renderizarClientes();
-        renderizarSecretarias();
-        showMessage('Cliente excluído com sucesso!', 'success');
+        const clienteId = clienteIdMap[nomeCliente];
+        if (!clienteId) {
+            showMessage('Não foi possível identificar o cliente selecionado.', 'error');
+            return;
+        }
+        try {
+            await apiRequest(`/api/clientes/${clienteId}`, { method: 'DELETE' });
+            await atualizarConfiguracoesUI();
+            showMessage('Cliente excluído com sucesso!', 'success');
+        } catch (error) {
+            showMessage(error.message || 'Erro ao excluir cliente.', 'error');
+        }
     }
 }
 
@@ -765,7 +840,10 @@ function renderizarSecretarias() {
 }
 
 // Adicionar secretaria
-document.getElementById('btn-add-secretaria').addEventListener('click', () => {
+document.getElementById('btn-add-secretaria').addEventListener('click', async () => {
+    if (!verificarPermissao('config')) {
+        return;
+    }
     const clienteSelecionado = document.getElementById('secretaria-cliente').value;
     const input = document.getElementById('nova-secretaria');
     const nomeSecretaria = input.value.trim();
@@ -780,31 +858,54 @@ document.getElementById('btn-add-secretaria').addEventListener('click', () => {
         return;
     }
 
-    if (!secretarias[clienteSelecionado]) {
-        secretarias[clienteSelecionado] = [];
-    }
-
-    if (secretarias[clienteSelecionado].includes(nomeSecretaria)) {
+    if (secretarias[clienteSelecionado] && secretarias[clienteSelecionado].includes(nomeSecretaria)) {
         showMessage('Secretaria já existe para este cliente!', 'error');
         return;
     }
 
-    secretarias[clienteSelecionado].push(nomeSecretaria);
-    salvarConfig();
-    renderizarSecretarias();
-    renderizarClientes();
-    input.value = '';
-    showMessage('Secretaria adicionada com sucesso!', 'success');
+    const clienteId = clienteIdMap[clienteSelecionado];
+    if (!clienteId) {
+        showMessage('Cliente inválido.', 'error');
+        return;
+    }
+
+    try {
+        await apiRequest('/api/secretarias', {
+            method: 'POST',
+            body: { clienteId, nome: nomeSecretaria },
+        });
+        await carregarSecretariasDoCliente(clienteSelecionado);
+        atualizarDropdowns();
+        renderizarSecretarias();
+        renderizarClientes();
+        input.value = '';
+        showMessage('Secretaria adicionada com sucesso!', 'success');
+    } catch (error) {
+        showMessage(error.message || 'Erro ao adicionar secretaria.', 'error');
+    }
 });
 
 // Deletar secretaria
-function deletarSecretaria(cliente, secretaria) {
+async function deletarSecretaria(cliente, secretaria) {
+    if (!verificarPermissao('config')) {
+        return;
+    }
     if (confirm(`Tem certeza que deseja excluir a secretaria "${secretaria}"?`)) {
-        secretarias[cliente] = secretarias[cliente].filter(s => s !== secretaria);
-        salvarConfig();
-        renderizarSecretarias();
-        renderizarClientes();
-        showMessage('Secretaria excluída com sucesso!', 'success');
+        const secretariaId = secretariaIdMap[`${cliente}::${secretaria}`];
+        if (!secretariaId) {
+            showMessage('Não foi possível localizar a secretaria selecionada.', 'error');
+            return;
+        }
+        try {
+            await apiRequest(`/api/secretarias/${secretariaId}`, { method: 'DELETE' });
+            await carregarSecretariasDoCliente(cliente);
+            renderizarSecretarias();
+            renderizarClientes();
+            atualizarDropdowns();
+            showMessage('Secretaria excluída com sucesso!', 'success');
+        } catch (error) {
+            showMessage(error.message || 'Erro ao excluir secretaria.', 'error');
+        }
     }
 }
 
@@ -875,7 +976,10 @@ function renderizarTiposPeca() {
 }
 
 // Adicionar tipo de peça
-document.getElementById('btn-add-tipo').addEventListener('click', () => {
+document.getElementById('btn-add-tipo').addEventListener('click', async () => {
+    if (!verificarPermissao('config')) {
+        return;
+    }
     const input = document.getElementById('novo-tipo');
     const nomeTipo = input.value.trim();
 
@@ -889,20 +993,38 @@ document.getElementById('btn-add-tipo').addEventListener('click', () => {
         return;
     }
 
-    tiposPeca.push(nomeTipo);
-    salvarConfig();
-    renderizarTiposPeca();
-    input.value = '';
-    showMessage('Tipo de peça adicionado com sucesso!', 'success');
+    try {
+        await apiRequest('/api/tipos-peca', { method: 'POST', body: { nome: nomeTipo } });
+        await carregarTiposPeca();
+        atualizarDropdowns();
+        renderizarTiposPeca();
+        input.value = '';
+        showMessage('Tipo de peça adicionado com sucesso!', 'success');
+    } catch (error) {
+        showMessage(error.message || 'Erro ao adicionar tipo de peça.', 'error');
+    }
 });
 
 // Deletar tipo de peça
-function deletarTipoPeca(tipo) {
+async function deletarTipoPeca(tipo) {
+    if (!verificarPermissao('config')) {
+        return;
+    }
     if (confirm(`Tem certeza que deseja excluir o tipo "${tipo}"?`)) {
-        tiposPeca = tiposPeca.filter(t => t !== tipo);
-        salvarConfig();
-        renderizarTiposPeca();
-        showMessage('Tipo de peça excluído com sucesso!', 'success');
+        const tipoId = tipoPecaIdMap[tipo];
+        if (!tipoId) {
+            showMessage('Tipo de peça inválido.', 'error');
+            return;
+        }
+        try {
+            await apiRequest(`/api/tipos-peca/${tipoId}`, { method: 'DELETE' });
+            await carregarTiposPeca();
+            atualizarDropdowns();
+            renderizarTiposPeca();
+            showMessage('Tipo de peça excluído com sucesso!', 'success');
+        } catch (error) {
+            showMessage(error.message || 'Erro ao excluir tipo de peça.', 'error');
+        }
     }
 }
 
@@ -1045,44 +1167,34 @@ modalEdicao.addEventListener('click', (e) => {
 });
 
 // Salvar edição
-formEdicao.addEventListener('submit', function(e) {
+formEdicao.addEventListener('submit', async function(e) {
     e.preventDefault();
 
     const pecaId = parseInt(document.getElementById('edit-id').value);
-    const pecaIndex = pecas.findIndex(p => p.id === pecaId);
+    const payload = {
+        cliente: document.getElementById('edit-cliente').value,
+        secretaria: document.getElementById('edit-secretaria').value,
+        tipoPeca: document.getElementById('edit-tipo-peca').value,
+        nomePeca: document.getElementById('edit-nome-peca').value,
+        dataCriacao: document.getElementById('edit-data-criacao').value,
+        dataVeiculacao: document.getElementById('edit-data-veiculacao').value || null,
+        observacao: document.getElementById('edit-observacao').value || '',
+    };
 
-    if (pecaIndex === -1) {
-        showMessage('Peça não encontrada!', 'error');
-        return;
-    }
-
-    // Atualiza os dados da peça
-    pecas[pecaIndex].cliente = document.getElementById('edit-cliente').value;
-    pecas[pecaIndex].secretaria = document.getElementById('edit-secretaria').value;
-    pecas[pecaIndex].tipoPeca = document.getElementById('edit-tipo-peca').value;
-    pecas[pecaIndex].nomePeca = document.getElementById('edit-nome-peca').value;
-    pecas[pecaIndex].dataCriacao = document.getElementById('edit-data-criacao').value;
-    pecas[pecaIndex].dataVeiculacao = document.getElementById('edit-data-veiculacao').value || null;
-    pecas[pecaIndex].observacao = document.getElementById('edit-observacao').value || '';
-
-    // Atualiza a imagem se foi selecionada uma nova
     if (editArquivoSelecionado) {
-        pecas[pecaIndex].comprovacao = editPreviewImage.src;
+        payload.comprovacao = editPreviewImage.src;
     }
 
-    // Salva no localStorage
-    salvarPecas();
-
-    // Fecha modal
-    modalEdicao.classList.remove('active');
-    formEdicao.reset();
-    editArquivoSelecionado = null;
-
-    // Atualiza listagem
-    renderizarPecas();
-
-    // Mensagem de sucesso
-    showMessage('Peça atualizada com sucesso!', 'success');
+    try {
+        await apiRequest(`/api/pecas/${pecaId}`, { method: 'PUT', body: payload });
+        modalEdicao.classList.remove('active');
+        formEdicao.reset();
+        editArquivoSelecionado = null;
+        await renderizarPecas();
+        showMessage('Peça atualizada com sucesso!', 'success');
+    } catch (error) {
+        showMessage(error.message || 'Erro ao atualizar peça.', 'error');
+    }
 });
 
 // ==================== SISTEMA DE AUTENTICAÇÃO E PERMISSÕES ====================
@@ -1100,6 +1212,10 @@ document.addEventListener('click', () => {
 
 // Abrir modal de login
 function abrirLogin() {
+    if (AUTH_DISABLED) {
+        showMessage('Modo teste ativo: login está desabilitado.', 'info');
+        return;
+    }
     document.getElementById('modal-login').classList.add('active');
     document.getElementById('user-dropdown').classList.remove('active');
 }
@@ -1119,39 +1235,66 @@ modalLogin.addEventListener('click', (e) => {
 });
 
 // Processo de login
-document.getElementById('form-login').addEventListener('submit', function(e) {
+document.getElementById('form-login').addEventListener('submit', async function(e) {
     e.preventDefault();
+
+    if (AUTH_DISABLED) {
+        showMessage('Modo teste ativo: autenticação manual está desabilitada.', 'info');
+        modalLogin.classList.remove('active');
+        return;
+    }
 
     const username = document.getElementById('login-username').value;
     const password = document.getElementById('login-password').value;
 
-    const usuario = usuarios.find(u => u.username === username && u.password === password);
+    try {
+        const response = await apiRequest('/auth/login', {
+            method: 'POST',
+            body: { username, password },
+            auth: false,
+        });
 
-    if (usuario) {
-        usuarioAtual = {
-            id: usuario.id,
-            username: usuario.username,
-            nome: usuario.nome || usuario.username,
-            role: usuario.role
-        };
+        setAuthData(response.access_token, {
+            id: response.user.id,
+            username: response.user.username,
+            nome: response.user.nome,
+            role: response.user.role,
+        });
 
-        sessionStorage.setItem('usuarioAtual', JSON.stringify(usuarioAtual));
-
+        await carregarDadosBase();
+        await renderizarPecas();
         atualizarInterfaceUsuario();
         modalLogin.classList.remove('active');
 
         document.getElementById('form-login').reset();
         showMessage(`Bem-vindo, ${usuarioAtual.nome}!`, 'success');
-    } else {
-        showMessage('Usuário ou senha incorretos!', 'error');
+    } catch (error) {
+        showMessage(error.message || 'Usuário ou senha incorretos!', 'error');
     }
 });
 
 // Logout
-function logout() {
+async function logout() {
+    if (AUTH_DISABLED) {
+        showMessage('Modo teste ativo: logout está desabilitado.', 'info');
+        return;
+    }
     if (confirm('Tem certeza que deseja sair?')) {
-        usuarioAtual = null;
-        sessionStorage.removeItem('usuarioAtual');
+        setAuthData(null, null);
+        pecas = [];
+        clientes = [];
+        clienteIdMap = {};
+        secretarias = {};
+        secretariaIdMap = {};
+        tiposPeca = [];
+        tipoPecaIdMap = {};
+        usuarios = [];
+
+        atualizarDropdowns();
+        renderizarClientes();
+        renderizarSecretarias();
+        renderizarTiposPeca();
+        await renderizarPecas();
         atualizarInterfaceUsuario();
         showMessage('Você saiu do sistema', 'success');
 
@@ -1205,6 +1348,10 @@ function aplicarPermissoes() {
     if (!usuarioAtual) return;
 
     const perm = permissoes[usuarioAtual.role];
+    if (!perm) {
+        showMessage('Permissões do usuário são inválidas.', 'error');
+        return false;
+    }
 
     // Controlar acesso às abas
     const tabs = document.querySelectorAll('.tab-btn');
@@ -1276,6 +1423,10 @@ function verificarPermissao(acao) {
         showMessage('Você não tem permissão para gerar relatórios!', 'error');
         return false;
     }
+    if (acao === 'config' && !perm.podeConfig) {
+        showMessage('Você não tem permissão para alterar as configurações!', 'error');
+        return false;
+    }
 
     return true;
 }
@@ -1283,7 +1434,7 @@ function verificarPermissao(acao) {
 // ==================== PAINEL DE ADMINISTRAÇÃO ====================
 
 // Abrir painel de administração
-function abrirAdmin() {
+async function abrirAdmin() {
     if (!usuarioAtual || !permissoes[usuarioAtual.role].podeAdmin) {
         showMessage('Você não tem permissão para acessar a administração!', 'error');
         return;
@@ -1291,7 +1442,7 @@ function abrirAdmin() {
 
     document.getElementById('admin-panel').style.display = 'block';
     document.getElementById('user-dropdown').classList.remove('active');
-    renderizarUsuarios();
+    await renderizarUsuarios();
 }
 
 // Fechar painel de administração
@@ -1299,18 +1450,27 @@ function fecharAdmin() {
     document.getElementById('admin-panel').style.display = 'none';
 }
 
-// Salvar usuários
-function salvarUsuarios() {
-    localStorage.setItem('usuarios', JSON.stringify(usuarios));
-}
-
 // Renderizar lista de usuários
-function renderizarUsuarios() {
+async function renderizarUsuarios() {
     const lista = document.getElementById('lista-usuarios');
-    lista.innerHTML = '';
+    lista.innerHTML = '<tr><td colspan="4" style="text-align:center;">Carregando usuários...</td></tr>';
 
+    try {
+        usuarios = await apiRequest('/api/usuarios');
+    } catch (error) {
+        lista.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);">Erro ao carregar usuários.</td></tr>';
+        showMessage(error.message || 'Erro ao carregar usuários.', 'error');
+        return;
+    }
+
+    if (!usuarios.length) {
+        lista.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);">Nenhum usuário encontrado.</td></tr>';
+        return;
+    }
+
+    lista.innerHTML = '';
     usuarios.forEach(usuario => {
-        const perm = permissoes[usuario.role];
+        const perm = permissoes[usuario.role] || { nome: usuario.role, descricao: '' };
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td><strong>${usuario.nome || usuario.username}</strong></td>
@@ -1331,7 +1491,7 @@ function renderizarUsuarios() {
 }
 
 // Cadastrar novo usuário
-document.getElementById('form-usuario').addEventListener('submit', function(e) {
+document.getElementById('form-usuario').addEventListener('submit', async function(e) {
     e.preventDefault();
 
     const username = document.getElementById('novo-usuario').value.trim();
@@ -1343,30 +1503,27 @@ document.getElementById('form-usuario').addEventListener('submit', function(e) {
         return;
     }
 
-    // Verificar se usuário já existe
-    if (usuarios.find(u => u.username === username)) {
-        showMessage('Este usuário já existe!', 'error');
-        return;
+    try {
+        await apiRequest('/api/usuarios', {
+            method: 'POST',
+            body: {
+                username,
+                nome: username,
+                password,
+                role,
+                isActive: true,
+            },
+        });
+        this.reset();
+        await renderizarUsuarios();
+        showMessage('Usuário cadastrado com sucesso!', 'success');
+    } catch (error) {
+        showMessage(error.message || 'Erro ao cadastrar usuário.', 'error');
     }
-
-    const novoUsuario = {
-        id: Date.now(),
-        username: username,
-        password: password,
-        role: role,
-        nome: username
-    };
-
-    usuarios.push(novoUsuario);
-    salvarUsuarios();
-    renderizarUsuarios();
-
-    this.reset();
-    showMessage('Usuário cadastrado com sucesso!', 'success');
 });
 
 // Deletar usuário
-function deletarUsuario(id) {
+async function deletarUsuario(id) {
     // Não permitir deletar o próprio usuário ou o admin padrão
     if (usuarioAtual && usuarioAtual.id === id) {
         showMessage('Você não pode deletar seu próprio usuário!', 'error');
@@ -1379,27 +1536,38 @@ function deletarUsuario(id) {
     }
 
     if (confirm('Tem certeza que deseja excluir este usuário?')) {
-        usuarios = usuarios.filter(u => u.id !== id);
-        salvarUsuarios();
-        renderizarUsuarios();
-        showMessage('Usuário excluído com sucesso!', 'success');
+        try {
+            await apiRequest(`/api/usuarios/${id}`, { method: 'DELETE' });
+            await renderizarUsuarios();
+            showMessage('Usuário excluído com sucesso!', 'success');
+        } catch (error) {
+            showMessage(error.message || 'Erro ao excluir usuário.', 'error');
+        }
     }
 }
 
 // ==================== INICIALIZAÇÃO ====================
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     // Define data atual nos campos de data
     const hoje = new Date().toISOString().split('T')[0];
     document.getElementById('data-criacao').value = hoje;
     document.getElementById('rel-data-inicio').value = hoje;
     document.getElementById('rel-data-fim').value = hoje;
 
-    // Inicializa configurações
-    atualizarDropdowns();
-    renderizarClientes();
-    renderizarSecretarias();
-    renderizarTiposPeca();
-
-    // Inicializa interface de usuário
     atualizarInterfaceUsuario();
+
+    if (authToken && usuarioAtual) {
+        try {
+            await carregarDadosBase();
+            await renderizarPecas();
+        } catch (error) {
+            showMessage(error.message || 'Erro ao carregar dados iniciais.', 'error');
+        }
+    } else {
+        atualizarDropdowns();
+        renderizarClientes();
+        renderizarSecretarias();
+        renderizarTiposPeca();
+        renderizarPecas();
+    }
 });
