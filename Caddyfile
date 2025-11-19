@@ -1,7 +1,7 @@
-sigepre.mslestrategia.com.br {
+sigepre.mslestrategia.com.br:8443 {
+    tls internal
     encode gzip zstd
 
-    # Rotas que devem ir para o backend FastAPI (porta 2021)
     handle_path /api/* {
         reverse_proxy 127.0.0.1:2021
     }
@@ -18,8 +18,15 @@ sigepre.mslestrategia.com.br {
         reverse_proxy 127.0.0.1:2021
     }
 
-    # Qualquer outra rota vai para o frontend (Nginx) na porta 8080
     handle /* {
         reverse_proxy 127.0.0.1:8080
+    }
+}
+
+sigepre.mslestrategia.com.br:8081 {
+    respond 301 {
+        headers {
+            Location https://sigepre.mslestrategia.com.br:8443{uri}
+        }
     }
 }
