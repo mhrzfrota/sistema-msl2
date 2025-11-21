@@ -4,6 +4,8 @@ SQLAlchemy
 alembic
 python-dotenv
 psycopg2-binary
+# Pin bcrypt to avoid backend detection errors in passlib
+bcrypt==4.1.2
 passlib[bcrypt]
 python-multipart
 python-jose[cryptography]
