@@ -6,7 +6,7 @@ sigepre.mslestrategia.com.br {
         path /api/* /auth/* /health /db-check /docs /openapi.json
     }
     handle @api {
-        reverse_proxy backend:8000 {
+        reverse_proxy http://127.0.0.1:2020 {
             header_up X-Real-IP {remote_host}
             header_up X-Forwarded-For {remote_host}
             header_up X-Forwarded-Proto {scheme}
@@ -19,7 +19,7 @@ sigepre.mslestrategia.com.br {
     }
 
     handle {
-        reverse_proxy frontend:80 {
+        reverse_proxy http://127.0.0.1:2021 {
             header_up X-Real-IP {remote_host}
             header_up X-Forwarded-For {remote_host}
             header_up X-Forwarded-Proto {scheme}
