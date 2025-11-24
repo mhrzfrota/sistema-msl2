@@ -58,7 +58,7 @@ def _get_secretaria(nome: str, cliente_id: int, db: Session) -> Secretaria:
     return secretaria
 
 
-def _serialize_peca(peca: Peca) -> PecaOut:
+def _serialize_peca(peca: Peca, include_comprovacao: bool = False) -> PecaOut:
     return PecaOut(
         id=peca.id,
         cliente=peca.cliente.nome,
@@ -68,8 +68,9 @@ def _serialize_peca(peca: Peca) -> PecaOut:
         dataCriacao=peca.data_criacao,
         dataVeiculacao=peca.data_veiculacao,
         observacao=peca.observacao or "",
-        comprovacao=peca.comprovacao_base64,
+        comprovacao=peca.comprovacao_base64 if include_comprovacao else None,
         dataCadastro=peca.data_cadastro,
+        hasComprovacao=bool(peca.comprovacao_base64),
     )
 
 
@@ -100,7 +101,7 @@ def create_peca(payload: PecaCreate, db: Session = Depends(get_db)) -> PecaOut:
     db.add(peca)
     db.commit()
     db.refresh(peca)
-    return _serialize_peca(peca)
+    return _serialize_peca(peca, include_comprovacao=True)
 
 
 @router.get("", response_model=List[PecaOut], dependencies=[Depends(get_current_user)])
@@ -110,6 +111,10 @@ def list_pecas(
     tipoPeca: Optional[str] = Query(None),
     dataInicio: Optional[date] = Query(None),
     dataFim: Optional[date] = Query(None),
+    page: Optional[int] = Query(None, ge=1, description="Página (opcional)"),
+    pageSize: Optional[int] = Query(
+        None, ge=1, le=200, description="Quantidade de itens por página (opcional)"
+    ),
     db: Session = Depends(get_db),
 ) -> List[PecaOut]:
     query = (
@@ -137,8 +142,11 @@ def list_pecas(
     if dataFim:
         query = query.filter(Peca.data_criacao <= dataFim)
 
+    if page and pageSize:
+        query = query.limit(pageSize).offset((page - 1) * pageSize)
+
     pecas = query.order_by(Peca.data_criacao.desc(), Peca.id.desc()).all()
-    return [_serialize_peca(peca) for peca in pecas]
+    return [_serialize_peca(peca, include_comprovacao=False) for peca in pecas]
 
 
 @router.get(
@@ -155,7 +163,7 @@ def get_peca(peca_id: int, db: Session = Depends(get_db)) -> PecaOut:
     )
     if not peca:
         raise HTTPException(status_code=404, detail="Peça não encontrada.")
-    return _serialize_peca(peca)
+    return _serialize_peca(peca, include_comprovacao=True)
 
 
 @router.put(
@@ -205,7 +213,7 @@ def update_peca(peca_id: int, payload: PecaUpdate, db: Session = Depends(get_db)
     db.add(peca)
     db.commit()
     db.refresh(peca)
-    return _serialize_peca(peca)
+    return _serialize_peca(peca, include_comprovacao=True)
 
 
 @router.delete(

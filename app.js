@@ -1,7 +1,9 @@
 // Sistema de Gestão de Peças - MSL2
 
 // ==================== SISTEMA DE AUTENTICAÇÃO ====================
-const API_BASE_URL = window.location.origin || 'http://localhost:8000';
+const CURRENT_ORIGIN = window.location.origin || 'http://localhost';
+const API_BASE_URL = window.API_BASE_URL
+    || (CURRENT_ORIGIN.includes(':2021') ? CURRENT_ORIGIN.replace(':2021', ':2020') : CURRENT_ORIGIN);
 let authDisabled = false; // Será sincronizado com o backend via /health
 const DEFAULT_ADMIN_USER = {
     id: 0,
@@ -375,9 +377,9 @@ function renderizarRelatorio(relatorio) {
     linhas.forEach(item => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td><strong>${item.secretaria}</strong></td>
-            <td>${item.tipoPeca}</td>
-            <td>${item.nomePeca}</td>
+            <td><strong>${escapeHTML(item.secretaria)}</strong></td>
+            <td>${escapeHTML(item.tipoPeca)}</td>
+            <td>${escapeHTML(item.nomePeca)}</td>
             <td>${formatarData(item.dataCriacao)}</td>
             <td>${item.dataVeiculacao ? formatarData(item.dataVeiculacao) : '-'}</td>
             <td><span style="background: #10b981; color: white; padding: 0.25rem 0.75rem; border-radius: 999px; font-weight: 600;">${item.quantidade}</span></td>
@@ -445,8 +447,8 @@ async function renderizarPecas() {
             card.innerHTML = `
                 <div class="peca-card-header">
                     <div class="peca-card-title">
-                        <span class="peca-badge">${peca.tipoPeca}</span>
-                        <h3>${peca.nomePeca}</h3>
+                        <span class="peca-badge">${escapeHTML(peca.tipoPeca)}</span>
+                        <h3>${escapeHTML(peca.nomePeca)}</h3>
                     </div>
                 </div>
                 <div class="peca-card-body">
@@ -457,7 +459,7 @@ async function renderizarPecas() {
                                 <circle cx="12" cy="7" r="4"/>
                             </svg>
                             <strong>Cliente:</strong>
-                            <span>${peca.cliente}</span>
+                            <span>${escapeHTML(peca.cliente)}</span>
                         </div>
                         <div class="peca-info-item">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -465,7 +467,7 @@ async function renderizarPecas() {
                                 <polyline points="9 22 9 12 15 12 15 22"/>
                             </svg>
                             <strong>Secretaria:</strong>
-                            <span>${peca.secretaria}</span>
+                            <span>${escapeHTML(peca.secretaria)}</span>
                         </div>
                         <div class="peca-info-item">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -496,7 +498,7 @@ async function renderizarPecas() {
                                 <line x1="16" y1="17" x2="8" y2="17"/>
                             </svg>
                             <strong>Observação:</strong>
-                            <span style="flex: 1;">${peca.observacao}</span>
+                            <span style="flex: 1;">${escapeHTML(peca.observacao)}</span>
                         </div>
                         ` : ''}
                     </div>
@@ -546,7 +548,8 @@ document.getElementById('filter-cliente').addEventListener('change', function() 
 
     if (clienteSelecionado && secretarias[clienteSelecionado]) {
         secretarias[clienteSelecionado].forEach(secretaria => {
-            filterSecretariaSelect.innerHTML += `<option value="${secretaria}">${secretaria}</option>`;
+            const safeSec = escapeHTML(secretaria);
+            filterSecretariaSelect.innerHTML += `<option value="${safeSec}">${safeSec}</option>`;
         });
     } else if (!clienteSelecionado) {
         // Se não houver cliente selecionado, mostra todas as secretarias
@@ -555,7 +558,8 @@ document.getElementById('filter-cliente').addEventListener('change', function() 
             secs.forEach(sec => todasSecretarias.add(sec));
         });
         todasSecretarias.forEach(secretaria => {
-            filterSecretariaSelect.innerHTML += `<option value="${secretaria}">${secretaria}</option>`;
+            const safeSec = escapeHTML(secretaria);
+            filterSecretariaSelect.innerHTML += `<option value="${safeSec}">${safeSec}</option>`;
         });
     }
 
@@ -605,11 +609,26 @@ document.getElementById('btn-view-list').addEventListener('click', function() {
 });
 
 // ==================== FUNÇÕES AUXILIARES ====================
-function visualizarComprovacao(id) {
-    const peca = pecas.find(p => p.id === id);
-    if (peca) {
-        modalImage.src = peca.comprovacao;
-        modal.classList.add('active');
+function escapeHTML(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+async function visualizarComprovacao(id) {
+    try {
+        const pecaDetalhe = await apiRequest(`/api/pecas/${id}`);
+        if (pecaDetalhe && pecaDetalhe.comprovacao) {
+            modalImage.src = pecaDetalhe.comprovacao;
+            modal.classList.add('active');
+        } else {
+            showMessage('Comprovação não encontrada.', 'error');
+        }
+    } catch (error) {
+        showMessage(error.message || 'Erro ao carregar comprovação.', 'error');
     }
 }
 
@@ -645,15 +664,22 @@ function showMessage(message, type = 'success') {
     const div = document.createElement('div');
     div.className = 'success-message';
     div.style.background = type === 'success' ? '#10b981' : '#ef4444';
-    div.innerHTML = `
+    const svgWrapper = document.createElement('div');
+    svgWrapper.innerHTML = `
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             ${type === 'success'
-                ? '<polyline points="20 6 9 17 4 12"/>'
-                : '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>'
+                ? '<polyline points="20 6 9 17 4 12"></polyline>'
+                : '<circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>'
             }
         </svg>
-        <span>${message}</span>
     `;
+    const svg = svgWrapper.firstElementChild;
+    if (svg) {
+        div.appendChild(svg);
+    }
+    const textSpan = document.createElement('span');
+    textSpan.textContent = message;
+    div.appendChild(textSpan);
 
     document.body.appendChild(div);
 
@@ -688,28 +714,32 @@ function atualizarDropdowns() {
     const clienteSelect = document.getElementById('cliente');
     clienteSelect.innerHTML = '<option value="">Selecione um cliente</option>';
     clientes.forEach(cliente => {
-        clienteSelect.innerHTML += `<option value="${cliente}">${cliente}</option>`;
+        const safe = escapeHTML(cliente);
+        clienteSelect.innerHTML += `<option value="${safe}">${safe}</option>`;
     });
 
     // Atualiza dropdown de clientes no relatório
     const relClienteSelect = document.getElementById('rel-cliente');
     relClienteSelect.innerHTML = '<option value="">Todos os clientes</option>';
     clientes.forEach(cliente => {
-        relClienteSelect.innerHTML += `<option value="${cliente}">${cliente}</option>`;
+        const safe = escapeHTML(cliente);
+        relClienteSelect.innerHTML += `<option value="${safe}">${safe}</option>`;
     });
 
     // Atualiza dropdown de clientes na configuração de secretarias
     const secClienteSelect = document.getElementById('secretaria-cliente');
     secClienteSelect.innerHTML = '<option value="">Selecione um cliente</option>';
     clientes.forEach(cliente => {
-        secClienteSelect.innerHTML += `<option value="${cliente}">${cliente}</option>`;
+        const safe = escapeHTML(cliente);
+        secClienteSelect.innerHTML += `<option value="${safe}">${safe}</option>`;
     });
 
     // Atualiza dropdown de clientes no filtro de listagem
     const filterClienteSelect = document.getElementById('filter-cliente');
     filterClienteSelect.innerHTML = '<option value="">Todos os clientes</option>';
     clientes.forEach(cliente => {
-        filterClienteSelect.innerHTML += `<option value="${cliente}">${cliente}</option>`;
+        const safe = escapeHTML(cliente);
+        filterClienteSelect.innerHTML += `<option value="${safe}">${safe}</option>`;
     });
 
     // Atualiza dropdown de secretarias no filtro de listagem
@@ -720,21 +750,24 @@ function atualizarDropdowns() {
         secs.forEach(sec => todasSecretarias.add(sec));
     });
     todasSecretarias.forEach(secretaria => {
-        filterSecretariaSelect.innerHTML += `<option value="${secretaria}">${secretaria}</option>`;
+        const safeSec = escapeHTML(secretaria);
+        filterSecretariaSelect.innerHTML += `<option value="${safeSec}">${safeSec}</option>`;
     });
 
     // Atualiza dropdown de tipos de peça
     const tipoPecaSelect = document.getElementById('tipo-peca');
     tipoPecaSelect.innerHTML = '<option value="">Selecione o tipo</option>';
     tiposPeca.forEach(tipo => {
-        tipoPecaSelect.innerHTML += `<option value="${tipo}">${tipo}</option>`;
+        const safeTipo = escapeHTML(tipo);
+        tipoPecaSelect.innerHTML += `<option value="${safeTipo}">${safeTipo}</option>`;
     });
 
     // Atualiza dropdown de tipos no filtro
     const filterTipoSelect = document.getElementById('filter-tipo');
     filterTipoSelect.innerHTML = '<option value="">Todos os tipos</option>';
     tiposPeca.forEach(tipo => {
-        filterTipoSelect.innerHTML += `<option value="${tipo}">${tipo}</option>`;
+        const safeTipo = escapeHTML(tipo);
+        filterTipoSelect.innerHTML += `<option value="${safeTipo}">${safeTipo}</option>`;
     });
 }
 
@@ -744,15 +777,17 @@ function renderizarClientes() {
     lista.innerHTML = '';
 
     clientes.forEach((cliente, index) => {
+        const safeDisplay = escapeHTML(cliente);
+        const encodedCliente = encodeURIComponent(cliente);
         const item = document.createElement('div');
         item.className = 'config-item';
         item.innerHTML = `
             <div class="config-item-content">
-                <div class="config-item-title">${cliente}</div>
+                <div class="config-item-title">${safeDisplay}</div>
                 <div class="config-item-subtitle">${secretarias[cliente] ? secretarias[cliente].length : 0} secretaria(s)</div>
             </div>
             <div class="config-item-actions">
-                <button class="btn-icon btn-icon-delete" onclick="deletarCliente('${cliente}')">
+                <button class="btn-icon btn-icon-delete" onclick="deletarCliente(decodeURIComponent('${encodedCliente}'))">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polyline points="3 6 5 6 21 6"/>
                         <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
@@ -833,15 +868,18 @@ function renderizarSecretarias() {
     }
 
     secretariasCliente.forEach(secretaria => {
+        const safeDisplay = escapeHTML(secretaria);
+        const encodedSecretaria = encodeURIComponent(secretaria);
+        const encodedCliente = encodeURIComponent(clienteSelecionado);
         const item = document.createElement('div');
         item.className = 'config-item';
         item.innerHTML = `
             <div class="config-item-content">
-                <div class="config-item-title">${secretaria}</div>
-                <div class="config-item-subtitle">${clienteSelecionado}</div>
+                <div class="config-item-title">${safeDisplay}</div>
+                <div class="config-item-subtitle">${escapeHTML(clienteSelecionado)}</div>
             </div>
             <div class="config-item-actions">
-                <button class="btn-icon btn-icon-delete" onclick="deletarSecretaria('${clienteSelecionado}', '${secretaria}')">
+                <button class="btn-icon btn-icon-delete" onclick="deletarSecretaria(decodeURIComponent('${encodedCliente}'), decodeURIComponent('${encodedSecretaria}'))">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polyline points="3 6 5 6 21 6"/>
                         <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
@@ -935,7 +973,8 @@ document.getElementById('cliente').addEventListener('change', function() {
 
     if (clienteSelecionado && secretarias[clienteSelecionado]) {
         secretarias[clienteSelecionado].forEach(secretaria => {
-            secretariaSelect.innerHTML += `<option value="${secretaria}">${secretaria}</option>`;
+            const safeSec = escapeHTML(secretaria);
+            secretariaSelect.innerHTML += `<option value="${safeSec}">${safeSec}</option>`;
         });
     }
 });
@@ -949,7 +988,8 @@ document.getElementById('rel-cliente').addEventListener('change', function() {
 
     if (clienteSelecionado && secretarias[clienteSelecionado]) {
         secretarias[clienteSelecionado].forEach(secretaria => {
-            secretariaSelect.innerHTML += `<option value="${secretaria}">${secretaria}</option>`;
+            const safeSec = escapeHTML(secretaria);
+            secretariaSelect.innerHTML += `<option value="${safeSec}">${safeSec}</option>`;
         });
     } else if (!clienteSelecionado) {
         // Mostra todas as secretarias de todos os clientes
@@ -958,7 +998,8 @@ document.getElementById('rel-cliente').addEventListener('change', function() {
             secs.forEach(sec => todasSecretarias.add(sec));
         });
         todasSecretarias.forEach(secretaria => {
-            secretariaSelect.innerHTML += `<option value="${secretaria}">${secretaria}</option>`;
+            const safeSec = escapeHTML(secretaria);
+            secretariaSelect.innerHTML += `<option value="${safeSec}">${safeSec}</option>`;
         });
     }
 });
@@ -969,15 +1010,16 @@ function renderizarTiposPeca() {
     lista.innerHTML = '';
 
     tiposPeca.forEach(tipo => {
+        const encodedTipo = encodeURIComponent(tipo);
         const item = document.createElement('div');
         item.className = 'config-item';
         item.innerHTML = `
             <div class="config-item-content">
-                <div class="config-item-title">${tipo}</div>
+                <div class="config-item-title">${escapeHTML(tipo)}</div>
                 <div class="config-item-subtitle">Disponível para todos os clientes</div>
             </div>
             <div class="config-item-actions">
-                <button class="btn-icon btn-icon-delete" onclick="deletarTipoPeca('${tipo}')">
+                <button class="btn-icon btn-icon-delete" onclick="deletarTipoPeca(decodeURIComponent('${encodedTipo}'))">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polyline points="3 6 5 6 21 6"/>
                         <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
@@ -1052,15 +1094,27 @@ const editFilePreview = document.querySelector('.file-preview-edit');
 const removeFileEditBtn = document.querySelector('.remove-file-edit');
 
 let editArquivoSelecionado = null;
+let pecaEmEdicao = null;
 
 // Função para abrir modal de edição
-function editarPeca(id) {
+async function editarPeca(id) {
     if (!verificarPermissao('editar')) {
         return;
     }
 
-    const peca = pecas.find(p => p.id === id);
-    if (!peca) return;
+    let peca;
+    try {
+        peca = await apiRequest(`/api/pecas/${id}`);
+    } catch (error) {
+        showMessage(error.message || 'Erro ao carregar peça.', 'error');
+        return;
+    }
+
+    if (!peca) {
+        showMessage('Peça não encontrada.', 'error');
+        return;
+    }
+    pecaEmEdicao = peca;
 
     // Preenche o ID
     document.getElementById('edit-id').value = peca.id;
@@ -1069,7 +1123,8 @@ function editarPeca(id) {
     const editClienteSelect = document.getElementById('edit-cliente');
     editClienteSelect.innerHTML = '<option value="">Selecione um cliente</option>';
     clientes.forEach(cliente => {
-        editClienteSelect.innerHTML += `<option value="${cliente}">${cliente}</option>`;
+        const safeCliente = escapeHTML(cliente);
+        editClienteSelect.innerHTML += `<option value="${safeCliente}">${safeCliente}</option>`;
     });
     editClienteSelect.value = peca.cliente;
 
@@ -1078,7 +1133,8 @@ function editarPeca(id) {
     editSecretariaSelect.innerHTML = '<option value="">Selecione uma secretaria</option>';
     if (secretarias[peca.cliente]) {
         secretarias[peca.cliente].forEach(secretaria => {
-            editSecretariaSelect.innerHTML += `<option value="${secretaria}">${secretaria}</option>`;
+            const safeSec = escapeHTML(secretaria);
+            editSecretariaSelect.innerHTML += `<option value="${safeSec}">${safeSec}</option>`;
         });
     }
     editSecretariaSelect.value = peca.secretaria;
@@ -1087,7 +1143,8 @@ function editarPeca(id) {
     const editTipoPecaSelect = document.getElementById('edit-tipo-peca');
     editTipoPecaSelect.innerHTML = '<option value="">Selecione o tipo</option>';
     tiposPeca.forEach(tipo => {
-        editTipoPecaSelect.innerHTML += `<option value="${tipo}">${tipo}</option>`;
+        const safeTipo = escapeHTML(tipo);
+        editTipoPecaSelect.innerHTML += `<option value="${safeTipo}">${safeTipo}</option>`;
     });
     editTipoPecaSelect.value = peca.tipoPeca;
 
@@ -1098,8 +1155,13 @@ function editarPeca(id) {
     document.getElementById('edit-observacao').value = peca.observacao || '';
 
     // Mostra preview da imagem atual
-    editPreviewImage.src = peca.comprovacao;
-    editFilePreview.style.display = 'block';
+    if (peca.comprovacao) {
+        editPreviewImage.src = peca.comprovacao;
+        editFilePreview.style.display = 'block';
+    } else {
+        editPreviewImage.src = '';
+        editFilePreview.style.display = 'none';
+    }
     editArquivoSelecionado = null;
 
     // Abre modal
@@ -1115,7 +1177,8 @@ document.getElementById('edit-cliente').addEventListener('change', function() {
 
     if (clienteSelecionado && secretarias[clienteSelecionado]) {
         secretarias[clienteSelecionado].forEach(secretaria => {
-            editSecretariaSelect.innerHTML += `<option value="${secretaria}">${secretaria}</option>`;
+            const safeSec = escapeHTML(secretaria);
+            editSecretariaSelect.innerHTML += `<option value="${safeSec}">${safeSec}</option>`;
         });
     }
 });
@@ -1152,10 +1215,8 @@ removeFileEditBtn.addEventListener('click', function() {
     editFileInput.value = '';
     editArquivoSelecionado = null;
     // Mantém a imagem original
-    const pecaId = parseInt(document.getElementById('edit-id').value);
-    const peca = pecas.find(p => p.id === pecaId);
-    if (peca) {
-        editPreviewImage.src = peca.comprovacao;
+    if (pecaEmEdicao && pecaEmEdicao.comprovacao) {
+        editPreviewImage.src = pecaEmEdicao.comprovacao;
     }
 });
 
@@ -1164,12 +1225,14 @@ modalCloseEdit.addEventListener('click', () => {
     modalEdicao.classList.remove('active');
     formEdicao.reset();
     editArquivoSelecionado = null;
+    pecaEmEdicao = null;
 });
 
 document.getElementById('btn-cancelar-edicao').addEventListener('click', () => {
     modalEdicao.classList.remove('active');
     formEdicao.reset();
     editArquivoSelecionado = null;
+    pecaEmEdicao = null;
 });
 
 modalEdicao.addEventListener('click', (e) => {
@@ -1177,6 +1240,7 @@ modalEdicao.addEventListener('click', (e) => {
         modalEdicao.classList.remove('active');
         formEdicao.reset();
         editArquivoSelecionado = null;
+        pecaEmEdicao = null;
     }
 });
 
@@ -1204,6 +1268,7 @@ formEdicao.addEventListener('submit', async function(e) {
         modalEdicao.classList.remove('active');
         formEdicao.reset();
         editArquivoSelecionado = null;
+        pecaEmEdicao = null;
         await renderizarPecas();
         showMessage('Peça atualizada com sucesso!', 'success');
     } catch (error) {
@@ -1487,9 +1552,9 @@ async function renderizarUsuarios() {
         const perm = permissoes[usuario.role] || { nome: usuario.role, descricao: '' };
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td><strong>${usuario.nome || usuario.username}</strong></td>
-            <td><span class="permission-badge ${usuario.role}">${perm.nome}</span></td>
-            <td>${perm.descricao}</td>
+            <td><strong>${escapeHTML(usuario.nome || usuario.username)}</strong></td>
+            <td><span class="permission-badge ${escapeHTML(usuario.role)}">${escapeHTML(perm.nome)}</span></td>
+            <td>${escapeHTML(perm.descricao)}</td>
             <td>
                 <button class="btn-table btn-table-delete" onclick="deletarUsuario(${usuario.id})">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

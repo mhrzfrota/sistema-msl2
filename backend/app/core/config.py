@@ -26,6 +26,10 @@ class Settings:
         self.database_sslmode = os.getenv("DATABASE_SSLMODE", "disable")
         self.jwt_secret = os.getenv("JWT_SECRET", "change-me")
         self.jwt_algorithm = os.getenv("JWT_ALGORITHM", "HS256")
+        raw_origins = os.getenv("ALLOWED_ORIGINS", "")
+        self.allowed_origins = [origin.strip() for origin in raw_origins.split(",") if origin.strip()] or [
+            "http://localhost:2021"
+        ]
         self.auth_disabled = os.getenv("AUTH_DISABLED", "false").lower() in {
             "1",
             "true",

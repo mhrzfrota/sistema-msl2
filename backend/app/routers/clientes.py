@@ -57,5 +57,12 @@ def delete_cliente(cliente_id: int, db: Session = Depends(get_db)) -> Response:
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente não encontrado.")
     db.delete(cliente)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="Não é possível excluir o cliente pois existem peças vinculadas.",
+        )
     return Response(status_code=status.HTTP_204_NO_CONTENT)

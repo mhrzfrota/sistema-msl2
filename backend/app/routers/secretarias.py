@@ -75,5 +75,12 @@ def delete_secretaria(secretaria_id: int, db: Session = Depends(get_db)) -> Resp
     if not secretaria:
         raise HTTPException(status_code=404, detail="Secretaria não encontrada.")
     db.delete(secretaria)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="Não é possível excluir a secretaria pois existem peças vinculadas.",
+        )
     return Response(status_code=status.HTTP_204_NO_CONTENT)

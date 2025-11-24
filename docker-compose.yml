@@ -1,6 +1,17 @@
 version: "3.9"
 
 services:
+  db:
+    image: postgres:15-alpine
+    container_name: msl_db
+    restart: unless-stopped
+    env_file:
+      - backend/.env
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - internal
+
   backend:
     build:
       context: ./backend
@@ -9,10 +20,10 @@ services:
     restart: unless-stopped
     env_file:
       - backend/.env
+    depends_on:
+      - db
     ports:
       - "2020:8000" # Caddy -> backend
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     networks:
       - internal
 
@@ -30,3 +41,5 @@ services:
       - internal
 networks:
   internal:
+volumes:
+  postgres_data:
