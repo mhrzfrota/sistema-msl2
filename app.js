@@ -1650,5 +1650,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         renderizarSecretarias();
         renderizarTiposPeca();
         renderizarPecas();
+        if (!authDisabled) {
+            // Abre o modal de login automaticamente para evitar uso sem autenticação
+            abrirLogin();
+        }
     }
 });
