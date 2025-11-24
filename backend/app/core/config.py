@@ -15,6 +15,7 @@ class Settings:
     """Simple settings object backed by environment variables."""
 
     def __init__(self) -> None:
+        self.database_url_env = os.getenv("DATABASE_URL")
         self.app_env = os.getenv("APP_ENV", "dev")
         self.app_port = int(os.getenv("APP_PORT", "8000"))
         self.database_host = os.getenv("DATABASE_HOST", "localhost")
@@ -34,6 +35,8 @@ class Settings:
 
     @property
     def database_url(self) -> str:
+        if self.database_url_env:
+            return self.database_url_env
         password = quote_plus(self.database_password)
         base = (
             f"postgresql://{self.database_user}:{password}"

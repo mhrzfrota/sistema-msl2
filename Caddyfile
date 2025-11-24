@@ -1,32 +1,38 @@
-sigepre.mslestrategia.com.br:8443 {
-    tls internal
-    encode gzip zstd
+sigepre.mslestrategia.com.br {
+    tls matheusfilho9@hotmail.com
+    encode zstd gzip
 
-    handle_path /api/* {
-        reverse_proxy 127.0.0.1:2021
+    @api {
+        path /api/* /auth/* /health /db-check /docs /openapi.json
+    }
+    handle @api {
+        reverse_proxy backend:8000 {
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+            header_up X-Forwarded-Host {host}
+            transport http {
+                dial_timeout 10s
+                response_header_timeout 60s
+            }
+        }
     }
 
-    handle_path /auth/* {
-        reverse_proxy 127.0.0.1:2021
+    handle {
+        reverse_proxy frontend:80 {
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+            header_up X-Forwarded-Host {host}
+        }
     }
 
-    handle_path /health {
-        reverse_proxy 127.0.0.1:2021
-    }
-
-    handle_path /db-check {
-        reverse_proxy 127.0.0.1:2021
-    }
-
-    handle /* {
-        reverse_proxy 127.0.0.1:8080
+    log {
+        output stdout
+        format console
     }
 }
 
-sigepre.mslestrategia.com.br:8081 {
-    respond 301 {
-        headers {
-            Location https://sigepre.mslestrategia.com.br:8443{uri}
-        }
-    }
+:80 {
+    redir https://sigepre.mslestrategia.com.br{uri} 301
 }
