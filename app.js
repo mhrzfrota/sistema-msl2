@@ -358,6 +358,9 @@ function renderizarRelatorio(relatorio) {
     const tabelaBody = document.getElementById('tabela-relatorio');
     const { info, stats, linhas } = relatorio;
 
+    // Armazena o relatório para exportação em PDF
+    ultimoRelatorioGerado = relatorio;
+
     // Atualiza informações do cabeçalho
     document.getElementById('info-cliente').textContent = info.cliente || 'Todos os clientes';
     document.getElementById('info-secretaria').textContent = info.secretaria || 'Todas as secretarias';
@@ -394,6 +397,7 @@ function renderizarRelatorio(relatorio) {
 
 // ==================== LISTAGEM DE PEÇAS ====================
 let viewMode = 'grid'; // 'grid' ou 'list'
+let ultimoRelatorioGerado = null; // Armazena dados do último relatório para exportação PDF
 
 async function renderizarPecas() {
     const listaPecas = document.getElementById('lista-pecas');
@@ -708,37 +712,17 @@ async function gerarPDF() {
         return;
     }
 
+    // Verifica se há um relatório gerado
+    if (!ultimoRelatorioGerado) {
+        showMessage('Gere um relatório primeiro antes de exportar!', 'error');
+        return;
+    }
+
+    const { info, stats, linhas } = ultimoRelatorioGerado;
+
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
-
-    // Obter dados do relatório atual
-    const info = {
-        cliente: document.getElementById('info-cliente').textContent,
-        secretaria: document.getElementById('info-secretaria').textContent,
-        periodo: document.getElementById('info-periodo').textContent
-    };
-
-    const totalPecas = document.getElementById('stat-total').textContent;
-
-    // Obter dados da tabela
-    const linhasTabela = [];
-    const tbody = document.getElementById('tabela-relatorio');
-    const rows = tbody.querySelectorAll('tr');
-
-    rows.forEach(row => {
-        const cells = row.querySelectorAll('td');
-        if (cells.length > 0) {
-            linhasTabela.push([
-                cells[0].textContent.trim(), // Secretaria
-                cells[1].textContent.trim(), // Tipo de Peça
-                cells[2].textContent.trim(), // Nome da Peça
-                cells[3].textContent.trim(), // Data Criação
-                cells[4].textContent.trim(), // Data Veiculação
-                cells[5].textContent.trim()  // Quantidade
-            ]);
-        }
-    });
 
     // ===== CABEÇALHO COM CORES E DESIGN =====
     // Faixa diagonal preta (superior esquerda)
@@ -774,11 +758,15 @@ try {
     doc.text('ATIVIDADES DA PREFEITURA', pageWidth / 2, 20, { align: 'center' });
 
     doc.setFontSize(12);
-    doc.text(`DE ${info.cliente.toUpperCase()}`, pageWidth / 2, 27, { align: 'center' });
+    const clienteNome = info.cliente || 'Todos os clientes';
+    doc.text(`DE ${clienteNome.toUpperCase()}`, pageWidth / 2, 27, { align: 'center' });
 
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
-    doc.text(`NO PERÍODO: ${info.periodo}`, pageWidth / 2, 33, { align: 'center' });
+    const periodoTexto = info.dataInicio && info.dataFim
+        ? `${formatarData(info.dataInicio)} até ${formatarData(info.dataFim)}`
+        : '-';
+    doc.text(`NO PERÍODO: ${periodoTexto}`, pageWidth / 2, 33, { align: 'center' });
 
     // Título da seção
     let yPosition = 52;
@@ -786,8 +774,9 @@ try {
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'bold');
 
-    let tituloSecao = info.secretaria !== 'Todas as secretarias'
-        ? info.secretaria.toUpperCase()
+    const secretariaNome = info.secretaria || 'Todas as secretarias';
+    let tituloSecao = secretariaNome !== 'Todas as secretarias'
+        ? secretariaNome.toUpperCase()
         : 'TODAS AS SECRETARIAS';
 
     doc.text(tituloSecao, 14, yPosition);
@@ -795,18 +784,18 @@ try {
     yPosition += 8;
 
     // ===== TABELA DE PEÇAS =====
-    if (linhasTabela.length > 0) {
+    if (linhas && linhas.length > 0) {
         doc.autoTable({
             startY: yPosition,
             head: [['#', 'Tipo de Peça', 'Nome da Peça', 'Secretaria', 'Criação', 'Veiculação']],
-            body: linhasTabela.map((linha, index) => {
+            body: linhas.map((linha, index) => {
                 return [
                     (index + 1).toString(),
-                    linha[1], // Tipo
-                    linha[2], // Nome
-                    linha[0], // Secretaria
-                    linha[3], // Data Criação
-                    linha[4]  // Data Veiculação
+                    linha.tipoPeca || '-',
+                    linha.nomePeca || '-',
+                    linha.secretaria || '-',
+                    linha.dataCriacao ? formatarData(linha.dataCriacao) : '-',
+                    linha.dataVeiculacao ? formatarData(linha.dataVeiculacao) : '-'
                 ];
             }),
             theme: 'grid',
@@ -847,6 +836,7 @@ try {
     doc.setFontSize(11);
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
+    const totalPecas = stats.totalPecas || 0;
     doc.text(`TOTAL DE PEÇAS: ${totalPecas}`, pageWidth / 2, yPosition + 8, { align: 'center' });
 
     // ===== RODAPÉ =====
@@ -858,7 +848,8 @@ try {
     doc.text(`Relatório gerado em ${dataGeracao} - SIGEPRE Sistema MSL Estratégia`, pageWidth / 2, rodapeY, { align: 'center' });
 
     // ===== SALVAR PDF =====
-    const nomeArquivo = `Relatorio_${info.cliente.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+    const clienteArquivo = (info.cliente || 'Todos').replace(/\s+/g, '_');
+    const nomeArquivo = `Relatorio_${clienteArquivo}_${new Date().toISOString().split('T')[0]}.pdf`;
     doc.save(nomeArquivo);
 
     showMessage('Relatório PDF gerado com sucesso!', 'success');
