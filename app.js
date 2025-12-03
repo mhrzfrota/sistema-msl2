@@ -16,6 +16,7 @@ const DEFAULT_ADMIN_TOKEN = 'dev-mode-token';
 // Estado da aplicação sincronizado com o backend
 let authToken = localStorage.getItem('msl_token') || null;
 let usuarioAtual = JSON.parse(localStorage.getItem('msl_usuario') || 'null');
+let authErrorNotified = false;
 let usuarios = [];
 let pecas = [];
 let clientes = [];
@@ -62,6 +63,7 @@ const permissoes = {
 function setAuthData(token, user) {
     authToken = token;
     usuarioAtual = user;
+    authErrorNotified = false;
     if (token && user) {
         localStorage.setItem('msl_token', token);
         localStorage.setItem('msl_usuario', JSON.stringify(user));
@@ -126,13 +128,25 @@ async function apiRequest(path, { method = 'GET', body, headers = {}, params, au
     }
     if (!response.ok) {
         let detail = response.statusText;
+        const isUnauthorized = response.status === 401;
         try {
             const data = await response.json();
             detail = data.detail || data.message || JSON.stringify(data);
         } catch {
             // Ignora parse de erro
         }
-        throw new Error(detail || 'Erro ao comunicar com o servidor.');
+        if (isUnauthorized && !authDisabled) {
+            setAuthData(null, null);
+            if (!authErrorNotified) {
+                authErrorNotified = true;
+                atualizarInterfaceUsuario();
+                abrirLogin();
+                detail = 'Sessão expirada. Faça login novamente.';
+            }
+        }
+        const error = new Error(detail || 'Erro ao comunicar com o servidor.');
+        error.status = response.status;
+        throw error;
     }
 
     if (response.status === 204) {

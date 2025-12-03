@@ -1646,7 +1646,7 @@ body {
 /* Header com gradiente animado */
 .header {
     position: relative;
-    overflow: hidden;
+    overflow: visible;
 }
 
 .header::before {
