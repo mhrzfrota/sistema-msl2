@@ -1103,20 +1103,38 @@ body {
     color: white;
 }
 
-/* Modal de Login */
+/* Modal de Login - Fundo branco */
+#modal-login {
+    background: #ffffff !important;
+    z-index: 9999;
+}
+
+#modal-login.active {
+    background: #ffffff !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
 .modal-content-login {
     position: relative;
     background: var(--bg-primary);
-    padding: 2.5rem;
+    padding: 3rem;
     border-radius: var(--border-radius);
     max-width: 450px;
     width: 90%;
     box-shadow: var(--shadow-lg);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    min-height: auto;
 }
 
 .login-header {
     text-align: center;
     margin-bottom: 2rem;
+    width: 100%;
 }
 
 .login-header svg {
@@ -1134,6 +1152,18 @@ body {
 .login-header p {
     color: var(--text-secondary);
     font-size: 0.95rem;
+}
+
+/* Formulário de login centralizado */
+#form-login {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+#form-login .form-group {
+    width: 100%;
 }
 
 .modal-close-login {
