@@ -76,8 +76,10 @@ function setAuthData(token, user) {
 function aplicarModoAutenticacao() {
     if (authDisabled) {
         setAuthData(DEFAULT_ADMIN_TOKEN, DEFAULT_ADMIN_USER);
+        esconderTelaLogin();
     } else if (authToken === DEFAULT_ADMIN_TOKEN) {
         setAuthData(null, null);
+        mostrarTelaLogin();
     }
 }
 
@@ -1489,42 +1491,32 @@ document.addEventListener('click', () => {
     document.getElementById('user-dropdown').classList.remove('active');
 });
 
-// Abrir modal de login
-function abrirLogin() {
-    if (authDisabled) {
-        showMessage('Modo teste ativo: login está desabilitado.', 'info');
-        return;
-    }
-    document.getElementById('modal-login').classList.add('active');
-    document.getElementById('user-dropdown').classList.remove('active');
+// Controlar exibição das telas
+function mostrarTelaLogin() {
+    document.getElementById('login-screen').classList.remove('hidden');
+    document.getElementById('main-container').style.display = 'none';
+    document.body.classList.add('login-active');
 }
 
-// Fechar modal de login
-const modalLogin = document.getElementById('modal-login');
-const modalCloseLogin = document.querySelector('.modal-close-login');
+function esconderTelaLogin() {
+    document.getElementById('login-screen').classList.add('hidden');
+    document.getElementById('main-container').style.display = '';
+    document.body.classList.remove('login-active');
+}
 
-modalCloseLogin.addEventListener('click', () => {
-    modalLogin.classList.remove('active');
-});
+// Controle de telas já implementado acima
 
-modalLogin.addEventListener('click', (e) => {
-    if (e.target === modalLogin) {
-        modalLogin.classList.remove('active');
-    }
-});
-
-// Processo de login
-document.getElementById('form-login').addEventListener('submit', async function(e) {
+// Processo de login na tela de login
+document.getElementById('form-login-screen').addEventListener('submit', async function(e) {
     e.preventDefault();
 
     if (authDisabled) {
         showMessage('Modo teste ativo: autenticação manual está desabilitada.', 'info');
-        modalLogin.classList.remove('active');
         return;
     }
 
-    const username = document.getElementById('login-username').value;
-    const password = document.getElementById('login-password').value;
+    const username = document.getElementById('login-username-screen').value;
+    const password = document.getElementById('login-password-screen').value;
 
     try {
         const response = await apiRequest('/auth/login', {
@@ -1543,9 +1535,9 @@ document.getElementById('form-login').addEventListener('submit', async function(
         await carregarDadosBase();
         await renderizarPecas();
         atualizarInterfaceUsuario();
-        modalLogin.classList.remove('active');
+        esconderTelaLogin();
 
-        document.getElementById('form-login').reset();
+        document.getElementById('form-login-screen').reset();
         showMessage(`Bem-vindo, ${usuarioAtual.nome}!`, 'success');
     } catch (error) {
         showMessage(error.message || 'Usuário ou senha incorretos!', 'error');
@@ -1575,7 +1567,9 @@ async function logout() {
         renderizarTiposPeca();
         await renderizarPecas();
         atualizarInterfaceUsuario();
-        showMessage('Você saiu do sistema', 'success');
+        
+        // Mostrar tela de login e esconder sistema principal
+        mostrarTelaLogin();
 
         // Fechar painel de admin se estiver aberto
         document.getElementById('admin-panel').style.display = 'none';
@@ -1587,7 +1581,6 @@ function atualizarInterfaceUsuario() {
     const userNameDisplay = document.getElementById('user-name-display');
     const dropdownUserName = document.getElementById('dropdown-user-name');
     const dropdownUserRole = document.getElementById('dropdown-user-role');
-    const btnLogin = document.getElementById('btn-login');
     const btnAdmin = document.getElementById('btn-admin');
     const btnLogout = document.getElementById('btn-logout');
 
@@ -1598,7 +1591,6 @@ function atualizarInterfaceUsuario() {
         dropdownUserName.textContent = usuarioAtual.nome;
         dropdownUserRole.textContent = perm.nome;
 
-        btnLogin.style.display = 'none';
         btnLogout.style.display = 'flex';
 
         // Mostrar botão admin apenas para usuários com permissão
@@ -1614,7 +1606,6 @@ function atualizarInterfaceUsuario() {
         dropdownUserName.textContent = 'Visitante';
         dropdownUserRole.textContent = 'Sem permissão';
 
-        btnLogin.style.display = 'flex';
         btnAdmin.style.display = 'none';
         btnLogout.style.display = 'none';
 
@@ -1838,21 +1829,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     atualizarInterfaceUsuario();
 
     if (authToken && usuarioAtual) {
+        // Usuário já está logado, mostrar sistema principal
+        esconderTelaLogin();
         try {
             await carregarDadosBase();
             await renderizarPecas();
         } catch (error) {
             showMessage(error.message || 'Erro ao carregar dados iniciais.', 'error');
+            // Se houver erro, mostrar tela de login
+            mostrarTelaLogin();
         }
     } else {
+        // Usuário não está logado, mostrar tela de login
+        mostrarTelaLogin();
         atualizarDropdowns();
         renderizarClientes();
         renderizarSecretarias();
         renderizarTiposPeca();
         renderizarPecas();
-        if (!authDisabled) {
-            // Abre o modal de login automaticamente para evitar uso sem autenticação
-            abrirLogin();
-        }
     }
 });
